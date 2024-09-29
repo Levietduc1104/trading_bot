@@ -1,0 +1,19 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+tradsys_venv/
+venv/
+
+# Excel files and generated data
+*.xlsx
+*.png
+
+# System-specific files
+.DS_Store
+
+# Python egg files
+*.egg-info/
+# Ignore all HTML files
+*.html
