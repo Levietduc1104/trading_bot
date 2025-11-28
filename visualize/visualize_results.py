@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def load_results():
     """Run the bot and get results"""
-    from portfolio_bot_demo import PortfolioRotationBot
+    import sys; sys.path.append(".."); from portfolio_bot_demo import PortfolioRotationBot
     
     logger.info("Running portfolio bot to get results...")
     bot = PortfolioRotationBot()
