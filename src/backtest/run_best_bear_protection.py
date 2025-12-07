@@ -8,7 +8,11 @@ Based on testing, the best config is:
 """
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src', 'backtest'))
+
+# Get the project root directory (2 levels up from this file)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(project_root, 'src', 'backtest'))
+
 from portfolio_bot_demo import PortfolioRotationBot
 
 print("="*80)
@@ -16,7 +20,7 @@ print("RUNNING BEST BEAR PROTECTION STRATEGY")
 print("="*80)
 
 # Initialize bot
-data_dir = os.path.join(os.path.dirname(__file__), 'sp500_data', 'daily')
+data_dir = os.path.join(project_root, 'sp500_data', 'daily')
 bot = PortfolioRotationBot(data_dir=data_dir)
 bot.prepare_data()
 bot.score_all_stocks()
