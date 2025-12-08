@@ -35,16 +35,15 @@ def create_trade_visualizations():
     bot.prepare_data()
     bot.score_all_stocks()
     
-    # Run backtest with BEAR PROTECTION
-    logger.info("\nRunning backtest with BEAR PROTECTION...")
-    logger.info("Strategy: 70% cash in bear markets, 10% cash in bull markets")
+    # Run backtest with ADAPTIVE REGIME
+    logger.info("\nRunning backtest with ADAPTIVE MULTI-FACTOR REGIME...")
+    logger.info("Strategy: Dynamic cash (5-65%) based on 4 market factors")
     portfolio_df = bot.backtest_with_bear_protection(
         top_n=10,
         rebalance_freq='M',
-        bear_cash_reserve=0.70,
-        bull_cash_reserve=0.10
+        use_adaptive_regime=True  # Use adaptive regime detection
     )
-    trades_log = track_trades_with_bear_protection(bot, top_n=10)
+    trades_log = track_trades_with_adaptive_regime(bot, top_n=10)
     
     # Create output file
     output_path = os.path.join(script_dir, "trading_analysis.html")
@@ -170,10 +169,11 @@ def create_performance_tab(portfolio_df, initial_capital):
 def create_stock_selector_tab(bot, trades_log):
     """Create Tab 3: Interactive stock price selector with CANDLESTICK chart + FA data"""
 
-    # Get all available stocks
-    all_tickers = sorted(bot.stocks_data.keys())
+    # Get only the most traded stocks for better performance (top 50)
+    most_traded = get_most_traded_stocks(trades_log, top_n=50)
+    all_tickers = sorted(most_traded)
 
-    logger.info(f"  - Creating interactive candlestick chart with FA data for {len(all_tickers)} stocks")
+    logger.info(f"  - Creating interactive candlestick chart with FA data for {len(all_tickers)} stocks (top 50 most traded)")
 
     # Default stock
     default_ticker = all_tickers[0]
@@ -194,9 +194,12 @@ def create_stock_selector_tab(bot, trades_log):
     # Create data sources for all stocks
     sources = {}
     trade_sources = {}
-    
+
     for ticker in all_tickers:
         df = bot.stocks_data[ticker]
+
+        # Use only last 3 years of data for performance (reduce data points)
+        df = df.tail(756)  # Approximately 3 years of trading days
 
         # Prepare candlestick data
         inc = df['close'] > df['open']
@@ -1334,6 +1337,110 @@ def track_trades_with_bear_protection(bot, top_n=10):
                 'cash': cash,
                 'cash_reserve': cash_reserve,
                 'market_regime': 'BEAR' if is_bear_market else 'BULL'
+            })
+
+    return trades
+
+
+def track_trades_with_adaptive_regime(bot, top_n=10):
+    """Track all trades during adaptive regime backtest"""
+
+    all_dates = bot.stocks_data[list(bot.stocks_data.keys())[0]].index
+
+    cash = bot.initial_capital
+    holdings = {}
+    trades = []
+
+    # Monthly rebalancing
+    last_month = None
+
+    for date in all_dates[100:]:  # Skip first 100 days
+        current_month = date.month
+
+        # Monthly rebalance
+        if current_month != last_month:
+            last_month = current_month
+
+            # Sell all holdings
+            sell_trades = []
+            for ticker in list(holdings.keys()):
+                if ticker in bot.stocks_data:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        value = holdings[ticker] * price
+                        cash += value
+
+                        sell_trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'SELL',
+                            'price': price,
+                            'shares': holdings[ticker],
+                            'value': value
+                        })
+
+            trades.extend(sell_trades)
+            holdings = {}
+
+            # Use adaptive regime detection
+            cash_reserve = bot.calculate_adaptive_regime(date)
+
+            # Determine regime label based on cash reserve
+            if cash_reserve <= 0.05:
+                regime = 'VERY BULLISH'
+            elif cash_reserve <= 0.25:
+                regime = 'BULLISH'
+            elif cash_reserve <= 0.45:
+                regime = 'NEUTRAL'
+            else:
+                regime = 'BEARISH'
+
+            # Score stocks
+            current_scores = {}
+            for ticker, df in bot.stocks_data.items():
+                df_at_date = df[df.index <= date]
+                if len(df_at_date) >= 100:
+                    try:
+                        current_scores[ticker] = bot.score_stock(ticker, df_at_date)
+                    except:
+                        pass
+
+            # Get top N stocks
+            ranked = sorted(current_scores.items(), key=lambda x: x[1], reverse=True)
+            top_stocks = [t for t, s in ranked[:top_n]]
+
+            # Allocate capital
+            invest_amount = cash * (1 - cash_reserve)
+            if len(top_stocks) > 0:
+                per_stock = invest_amount / len(top_stocks)
+
+                for ticker in top_stocks:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        shares = per_stock / price
+                        holdings[ticker] = shares
+                        cash -= per_stock
+
+                        trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'BUY',
+                            'price': price,
+                            'shares': shares,
+                            'value': per_stock,
+                            'score': current_scores.get(ticker, 0)
+                        })
+
+            trades.append({
+                'date': date,
+                'ticker': 'PORTFOLIO',
+                'action': 'HOLDINGS',
+                'holdings': list(holdings.keys()),
+                'cash': cash,
+                'cash_reserve': cash_reserve,
+                'market_regime': regime
             })
 
     return trades

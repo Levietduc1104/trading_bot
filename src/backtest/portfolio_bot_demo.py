@@ -449,8 +449,85 @@ class PortfolioRotationBot:
 
         return portfolio_df
 
+    def calculate_adaptive_regime(self, date):
+        """
+        ADAPTIVE MULTI-FACTOR REGIME DETECTION
+        Uses 4 standard factors with equal weighting (no tuning/optimization)
+        Returns cash reserve percentage based on market regime
+
+        Factors:
+        1. Trend (200 MA) - Long-term direction
+        2. Momentum (50-day ROC) - Medium-term strength
+        3. Volatility (30-day vs 1-year) - Market stress level
+        4. Breadth (% stocks > 200 MA) - Market health
+
+        Returns cash reserve: 0.05 (very bullish) to 0.65 (very bearish)
+        """
+        spy_data = self.stocks_data.get('SPY')
+        if spy_data is None:
+            return 0.60  # Default to defensive if no SPY data
+
+        df = spy_data[spy_data.index <= date]
+        if len(df) < 200:
+            return 0.60  # Default to defensive
+
+        price = df.iloc[-1]['close']
+
+        # Factor 1: Trend (200 MA - industry standard)
+        ma200 = df['close'].tail(200).mean()
+        trend_score = 1 if price > ma200 else -1
+
+        # Factor 2: Momentum (50-day ROC - standard period)
+        if len(df) >= 50:
+            price_50_ago = df['close'].iloc[-50]
+            momentum = (price / price_50_ago - 1)
+            momentum_score = 1 if momentum > 0.05 else -1
+        else:
+            momentum_score = 0
+
+        # Factor 3: Volatility (30-day vs 1-year average)
+        returns = df['close'].pct_change()
+        if len(returns) >= 252:
+            vol_30 = returns.tail(30).std()
+            vol_252 = returns.tail(252).std()
+            vol_score = 1 if vol_30 < vol_252 else -1
+        else:
+            vol_score = 0
+
+        # Factor 4: Market Breadth (% stocks above 200 MA)
+        breadth_count = 0
+        total_count = 0
+        for ticker, stock_df in self.stocks_data.items():
+            stock_at_date = stock_df[stock_df.index <= date]
+            if len(stock_at_date) >= 200:
+                stock_price = stock_at_date.iloc[-1]['close']
+                stock_ma200 = stock_at_date['close'].tail(200).mean()
+                if stock_price > stock_ma200:
+                    breadth_count += 1
+                total_count += 1
+
+        if total_count > 0:
+            breadth_pct = breadth_count / total_count
+            breadth_score = 1 if breadth_pct > 0.50 else -1  # 50% threshold
+        else:
+            breadth_score = 0
+
+        # Equal weighting of all factors (no optimization)
+        total_score = trend_score + momentum_score + vol_score + breadth_score
+
+        # Map score to cash reserve (linear mapping, no tuning)
+        if total_score >= 3:
+            return 0.05   # Very bullish (score 3-4)
+        elif total_score >= 1:
+            return 0.25   # Bullish (score 1-2)
+        elif total_score >= -1:
+            return 0.45   # Neutral (score -1 to 0)
+        else:
+            return 0.65   # Bearish (score -2 to -4)
+
     def backtest_with_bear_protection(self, top_n=10, rebalance_freq='M',
-                                       bear_cash_reserve=0.7, bull_cash_reserve=0.2):
+                                       bear_cash_reserve=0.7, bull_cash_reserve=0.2,
+                                       use_adaptive_regime=False):
         """
         Backtest with BEAR MARKET PROTECTION
         Key idea: Reduce exposure (increase cash) when market is declining
@@ -498,22 +575,28 @@ class PortfolioRotationBot:
                         cash += holdings[ticker] * current_price
                 holdings = {}
 
-                # DETECT BEAR MARKET: Check if SPY is below its 200-day MA
-                # (This is a simple bear market indicator)
-                spy_data = self.stocks_data.get('SPY')
-                is_bear_market = False
+                # Use adaptive regime detection or fallback to simple bear/bull
+                if use_adaptive_regime:
+                    cash_reserve = self.calculate_adaptive_regime(date)
+                    regime = f"ADAPTIVE ({cash_reserve*100:.0f}% cash)"
+                else:
+                    # DETECT BEAR MARKET: Check if SPY is below its 200-day MA
+                    # (This is a simple bear market indicator)
+                    spy_data = self.stocks_data.get('SPY')
+                    is_bear_market = False
 
-                if spy_data is not None:
-                    spy_at_date = spy_data[spy_data.index <= date]
-                    if len(spy_at_date) >= 200:
-                        spy_price = spy_at_date.iloc[-1]['close']
-                        spy_ma200 = spy_at_date['close'].tail(200).mean()
-                        is_bear_market = spy_price < spy_ma200
+                    if spy_data is not None:
+                        spy_at_date = spy_data[spy_data.index <= date]
+                        if len(spy_at_date) >= 200:
+                            spy_price = spy_at_date.iloc[-1]['close']
+                            spy_ma200 = spy_at_date['close'].tail(200).mean()
+                            is_bear_market = spy_price < spy_ma200
 
-                # Adjust cash reserve based on market regime
-                cash_reserve = bear_cash_reserve if is_bear_market else bull_cash_reserve
+                    # Adjust cash reserve based on market regime
+                    cash_reserve = bear_cash_reserve if is_bear_market else bull_cash_reserve
+                    regime = '🐻 BEAR' if is_bear_market else '🐂 BULL'
 
-                logger.info(f"{date.date()}: {'🐻 BEAR' if is_bear_market else '🐂 BULL'} - Cash reserve: {cash_reserve*100:.0f}%")
+                logger.info(f"{date.date()}: {regime} - Cash reserve: {cash_reserve*100:.0f}%")
 
                 # Score all stocks
                 current_scores = {}

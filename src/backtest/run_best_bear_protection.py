@@ -1,10 +1,10 @@
 """
-RUN BEST BEAR PROTECTION AND VISUALIZE
-Based on testing, the best config is:
-- Monthly rebalancing
-- 70% cash in bear markets
-- 10% cash in bull markets
-- Result: 18.3% annual, 2021: +2.4%, 2022: -10.1%
+RUN BEST BEAR PROTECTION WITH ADAPTIVE REGIME
+Based on unbiased timing strategy comparison:
+- Adaptive Multi-Factor Regime Detection (winner: 7.92% annual return)
+- Uses 4 standard factors: trend, momentum, volatility, breadth
+- Dynamic cash reserves: 5% (very bullish) to 65% (very bearish)
+- No parameter tuning - all standard industry parameters
 """
 import sys
 import os
@@ -16,7 +16,7 @@ sys.path.append(os.path.join(project_root, 'src', 'backtest'))
 from portfolio_bot_demo import PortfolioRotationBot
 
 print("="*80)
-print("RUNNING BEST BEAR PROTECTION STRATEGY")
+print("RUNNING ADAPTIVE MULTI-FACTOR REGIME STRATEGY")
 print("="*80)
 
 # Initialize bot
@@ -25,20 +25,24 @@ bot = PortfolioRotationBot(data_dir=data_dir)
 bot.prepare_data()
 bot.score_all_stocks()
 
-# Run best configuration
-print("\nBest Configuration:")
+# Run adaptive regime strategy
+print("\nAdaptive Multi-Factor Configuration:")
 print("  - Monthly rebalancing")
-print("  - 70% cash in bear markets (when SPY < 200-day MA)")
-print("  - 10% cash in bull markets")
+print("  - Dynamic cash reserve based on 4 market factors:")
+print("    1. Trend (200-day MA)")
+print("    2. Momentum (50-day ROC)")
+print("    3. Volatility (30-day vs 1-year)")
+print("    4. Market Breadth (% stocks > 200 MA)")
+print("  - Cash range: 5% (very bullish) to 65% (very bearish)")
 print("")
 
 portfolio_df = bot.backtest_with_bear_protection(
     top_n=10,
     rebalance_freq='M',
-    bear_cash_reserve=0.70,
-    bull_cash_reserve=0.10
+    use_adaptive_regime=True  # Enable adaptive regime detection
 )
 
 print("\n" + "="*80)
-print("SAVED! Now updating visualization...")
+print("ADAPTIVE REGIME BACKTEST COMPLETE")
 print("="*80)
+

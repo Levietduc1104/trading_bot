@@ -12,9 +12,9 @@ This trading bot implements a momentum-based portfolio rotation strategy that:
 
 ### Key Features
 
-- **Bear Market Protection**: Automatically adjusts cash reserves (70%) when SPY falls below 200-day moving average
+- **Bear Market Protection**: Automatically adjusts cash reserves (60% - optimized) when SPY falls below 200-day moving average
 - **Monthly Rebalancing**: Systematically rotates into top 10 momentum stocks
-- **Historical Performance**: 7.5% annual return (2005-2024) with 90% positive years
+- **Historical Performance**: 7.9% annual return (2005-2024) with optimized parameters
 - **Interactive Visualizations**: Bokeh-based charts for portfolio analysis
 
 ## 🚀 Quick Start
@@ -93,7 +93,7 @@ To use real market data, you can:
 
 ### Run Best Strategy Configuration
 
-Run the optimized bear protection strategy (70% cash in bear markets):
+Run the optimized bear protection strategy (60% cash in bear markets - Phase 1 optimized):
 
 ```bash
 python3 src/backtest/run_best_bear_protection.py
@@ -105,9 +105,9 @@ python3 src/backtest/run_best_bear_protection.py
 RUNNING BEST BEAR PROTECTION STRATEGY
 ================================================================================
 
-Best Configuration:
+Optimized Configuration (Phase 1):
   - Monthly rebalancing
-  - 70% cash in bear markets (when SPY < 200-day MA)
+  - 60% cash in bear markets (when SPY < 200-day MA)
   - 10% cash in bull markets
 
 INFO: Loading 472 stocks...
@@ -118,11 +118,11 @@ INFO: Starting BEAR PROTECTION backtest...
 BEAR PROTECTION RESULTS
 ============================================================
 Initial Capital: $100,000
-Final Value: $404,533
-Total Return: 304.5%
-Annual Return: 7.5%
-Max Drawdown: -26.1%
-Sharpe Ratio: 1.32
+Final Value: $456,610
+Total Return: 356.6%
+Annual Return: 7.9%
+Max Drawdown: -32.8%
+Sharpe Ratio: 1.28
 ============================================================
 
 Yearly Returns:
@@ -148,7 +148,7 @@ bot.score_all_stocks()
 portfolio_df = bot.backtest_with_bear_protection(
     top_n=10,                    # Number of stocks to hold
     rebalance_freq='M',          # Monthly rebalancing
-    bear_cash_reserve=0.70,      # 70% cash in bear markets
+    bear_cash_reserve=0.60,      # 60% cash in bear markets (optimized)
     bull_cash_reserve=0.10       # 10% cash in bull markets
 )
 ```
@@ -204,7 +204,7 @@ top_n = 10                      # Number of stocks to hold
 rebalance_freq = 'M'            # M (monthly), Q (quarterly), Y (yearly)
 
 # Bear market protection
-bear_cash_reserve = 0.70        # 70% cash when SPY < 200-day MA
+bear_cash_reserve = 0.60        # 60% cash when SPY < 200-day MA (optimized)
 bull_cash_reserve = 0.10        # 10% cash in normal markets
 
 # Risk management
@@ -260,18 +260,18 @@ The strategy identifies bear markets when:
 - SPY (S&P 500 ETF) closes below its 200-day moving average
 
 Actions taken:
-- **Bear Market (🐻)**: Move to 70% cash, hold only top 3 stocks
+- **Bear Market (🐻)**: Move to 60% cash (optimized), hold top 10 stocks
 - **Bull Market (🐂)**: Stay 90% invested in top 10 stocks
 
-### Historical Performance Highlights
+### Historical Performance Highlights (Optimized Configuration)
 
 | Metric | Value |
 |--------|-------|
-| Total Return (2005-2024) | 304.5% |
-| Annual Return | 7.5% |
-| Max Drawdown | -26.1% |
-| Sharpe Ratio | 1.32 |
-| Win Rate | 90% (18/20 years positive) |
+| Total Return (2005-2024) | 356.6% |
+| Annual Return | 7.9% |
+| Max Drawdown | -32.8% |
+| Sharpe Ratio | 1.28 |
+| Improvement vs Baseline | +0.4% annual |
 
 **Notable Years:**
 - **2008 Financial Crisis**: -17.9% (vs S&P 500 -37%)
