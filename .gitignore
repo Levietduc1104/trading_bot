@@ -17,3 +17,5 @@ venv/
 *.egg-info/
 # Ignore all HTML files
 *.html
+# Output directory - generated results
+output/
