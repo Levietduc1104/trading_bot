@@ -77,11 +77,13 @@ def run_backtest(data_dir='sp500_data/daily', initial_capital=100000):
     logger.info("  - Monthly rebalancing")
     logger.info("  - Dynamic cash reserve (5% to 65%)")
     logger.info("  - Market factors: Trend, Momentum, Volatility, Breadth")
+    logger.info("  - Trading fee: 0.1% per trade (10 basis points)")
 
     portfolio_df = bot.backtest_with_bear_protection(
         top_n=10,
         rebalance_freq='M',
-        use_adaptive_regime=True
+        use_adaptive_regime=True,
+        trading_fee_pct=0.001  # 0.1% fee per trade
     )
 
     # Rename 'value' column to 'portfolio_value' for consistency

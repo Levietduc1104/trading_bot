@@ -38,10 +38,12 @@ def create_trade_visualizations():
     # Run backtest with ADAPTIVE REGIME
     logger.info("\nRunning backtest with ADAPTIVE MULTI-FACTOR REGIME...")
     logger.info("Strategy: Dynamic cash (5-65%) based on 4 market factors")
+    logger.info("Trading fee: 0.1% per trade")
     portfolio_df = bot.backtest_with_bear_protection(
         top_n=10,
         rebalance_freq='M',
-        use_adaptive_regime=True  # Use adaptive regime detection
+        use_adaptive_regime=True,  # Use adaptive regime detection
+        trading_fee_pct=0.001  # 0.1% fee per trade
     )
     trades_log = track_trades_with_adaptive_regime(bot, top_n=10)
     
@@ -199,7 +201,7 @@ def create_stock_selector_tab(bot, trades_log):
         df = bot.stocks_data[ticker]
 
         # Use only last 3 years of data for performance (reduce data points)
-        df = df.tail(756)  # Approximately 3 years of trading days
+    # df = df.tail(756)  # Commented out to show all data
 
         # Prepare candlestick data
         inc = df['close'] > df['open']
@@ -237,22 +239,45 @@ def create_stock_selector_tab(bot, trades_log):
             'inc': inc.values,
             'dec': dec.values,
         }
-        
+
         # Trade data
         stock_trades = [t for t in trades_log if t.get('ticker') == ticker and t.get('action') in ['BUY', 'SELL']]
-        
+
         buy_dates = [t['date'] for t in stock_trades if t['action'] == 'BUY']
         buy_prices = [t['price'] for t in stock_trades if t['action'] == 'BUY']
         sell_dates = [t['date'] for t in stock_trades if t['action'] == 'SELL']
         sell_prices = [t['price'] for t in stock_trades if t['action'] == 'SELL']
-        
+
+        # Validate trade prices against actual stock data to catch data corruption
+        max_stock_price = df['close'].max()
+        min_stock_price = df['close'].min()
+
+        # Filter out invalid buy prices (more than 10x the max stock price or less than 0.1x min)
+        valid_buys = [(date, price) for date, price in zip(buy_dates, buy_prices)
+                     if min_stock_price * 0.1 <= price <= max_stock_price * 10]
+        buy_dates = [d for d, p in valid_buys]
+        buy_prices = [p for d, p in valid_buys]
+
+        # Filter out invalid sell prices
+        valid_sells = [(date, price) for date, price in zip(sell_dates, sell_prices)
+                      if min_stock_price * 0.1 <= price <= max_stock_price * 10]
+        sell_dates = [d for d, p in valid_sells]
+        sell_prices = [p for d, p in valid_sells]
+
+        # Debug: Print if we filtered out any trades
+        removed_buys = len(stock_trades) - len([t for t in stock_trades if t['action'] == 'BUY']) + len([t for t in stock_trades if t['action'] == 'BUY']) - len(buy_dates)
+        removed_sells = len(stock_trades) - len([t for t in stock_trades if t['action'] == 'SELL']) + len([t for t in stock_trades if t['action'] == 'SELL']) - len(sell_dates)
+        if removed_buys > 0 or removed_sells > 0:
+            logger.warning(f"⚠️  {ticker}: Filtered out {removed_buys} invalid buy trades and {removed_sells} invalid sell trades")
+            logger.warning(f"   Stock price range: ${min_stock_price:.2f} - ${max_stock_price:.2f}")
+
         trade_sources[ticker] = {
             'buy': ColumnDataSource(data={'date': buy_dates, 'price': buy_prices}),
             'sell': ColumnDataSource(data={'date': sell_dates, 'price': sell_prices})
         }
     
-    # Create the plot
-    p = figure(x_axis_type="datetime", width=1400, height=600,
+    # Create the plot with logarithmic y-axis for stocks with large price ranges
+    p = figure(x_axis_type="datetime", y_axis_type="log", width=1400, height=600,
                title=f"Stock Price (Candlestick): {default_ticker}",
                tools="pan,wheel_zoom,box_zoom,reset,save")
     
