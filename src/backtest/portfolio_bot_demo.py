@@ -527,7 +527,7 @@ class PortfolioRotationBot:
 
     def backtest_with_bear_protection(self, top_n=10, rebalance_freq='M',
                                        bear_cash_reserve=0.7, bull_cash_reserve=0.2,
-                                       use_adaptive_regime=False):
+                                       use_adaptive_regime=False, trading_fee_pct=0.001):
         """
         Backtest with BEAR MARKET PROTECTION
         Key idea: Reduce exposure (increase cash) when market is declining
@@ -537,10 +537,12 @@ class PortfolioRotationBot:
             rebalance_freq: 'M' for monthly, 'W' for weekly
             bear_cash_reserve: Cash % in bear market (0.7 = 70%)
             bull_cash_reserve: Cash % in bull market (0.2 = 20%)
+            trading_fee_pct: Trading fee as percentage (0.001 = 0.1% per trade)
         """
         logger.info(f"Starting BEAR PROTECTION backtest:")
         logger.info(f"  - Bull market cash: {bull_cash_reserve*100:.0f}%")
         logger.info(f"  - Bear market cash: {bear_cash_reserve*100:.0f}%")
+        logger.info(f"  - Trading fee: {trading_fee_pct*100:.3f}% per trade")
 
         # Get common dates
         first_ticker = list(self.stocks_data.keys())[0]
@@ -572,7 +574,9 @@ class PortfolioRotationBot:
                     df_at_date = self.stocks_data[ticker][self.stocks_data[ticker].index <= date]
                     if len(df_at_date) > 0:
                         current_price = df_at_date.iloc[-1]['close']
-                        cash += holdings[ticker] * current_price
+                        sale_value = holdings[ticker] * current_price
+                        fee = sale_value * trading_fee_pct
+                        cash += sale_value - fee
                 holdings = {}
 
                 # Use adaptive regime detection or fallback to simple bear/bull
@@ -623,7 +627,8 @@ class PortfolioRotationBot:
                         current_price = df_at_date.iloc[-1]['close']
                         shares = allocation_per_stock / current_price
                         holdings[ticker] = shares
-                        cash -= allocation_per_stock
+                        fee = allocation_per_stock * trading_fee_pct
+                        cash -= (allocation_per_stock + fee)
 
             # Calculate daily portfolio value
             stocks_value = 0
