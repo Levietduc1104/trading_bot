@@ -72,8 +72,9 @@ def run_backtest(data_dir='sp500_data/daily', initial_capital=100000):
     logger.info("Scoring stocks...")
     bot.score_all_stocks()
 
-    logger.info("Running backtest with ADAPTIVE MULTI-FACTOR REGIME...")
+    logger.info("Running backtest with V8 VIX REGIME DETECTION...")
     logger.info("Configuration:")
+    logger.info("V8 uses VIX volatility index (forward-looking fear indicator)")
     logger.info("  - Monthly rebalancing")
     logger.info("  - Dynamic cash reserve (5% to 65%)")
     logger.info("  - Market factors: Trend, Momentum, Volatility, Breadth")
@@ -83,6 +84,7 @@ def run_backtest(data_dir='sp500_data/daily', initial_capital=100000):
         top_n=10,
         rebalance_freq='M',
         use_adaptive_regime=True,
+        use_vix_regime=True,  # V8: Use VIX fear index for regime detection
         trading_fee_pct=0.001  # 0.1% fee per trade
     )
 

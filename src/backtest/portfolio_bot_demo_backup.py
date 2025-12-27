@@ -23,48 +23,6 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-# S&P 500 Sector Mapping (for V7 sector relative strength)
-SECTOR_MAP = {
-    # Technology
-    'AAPL': 'Technology', 'MSFT': 'Technology', 'NVDA': 'Technology',
-    'GOOGL': 'Technology', 'GOOG': 'Technology', 'META': 'Technology',
-    'AVGO': 'Technology', 'TSLA': 'Technology', 'ORCL': 'Technology',
-    'AMD': 'Technology', 'INTC': 'Technology', 'CSCO': 'Technology',
-    'QCOM': 'Technology', 'CRM': 'Technology', 'ADBE': 'Technology',
-    # Financials
-    'JPM': 'Financials', 'V': 'Financials', 'MA': 'Financials',
-    'BAC': 'Financials', 'WFC': 'Financials', 'MS': 'Financials',
-    'GS': 'Financials', 'BLK': 'Financials', 'SCHW': 'Financials',
-    # Healthcare
-    'UNH': 'Healthcare', 'JNJ': 'Healthcare', 'LLY': 'Healthcare',
-    'ABBV': 'Healthcare', 'MRK': 'Healthcare', 'PFE': 'Healthcare',
-    'TMO': 'Healthcare', 'ABT': 'Healthcare', 'DHR': 'Healthcare',
-    # Consumer Discretionary
-    'AMZN': 'Consumer Discretionary', 'HD': 'Consumer Discretionary',
-    'NKE': 'Consumer Discretionary', 'MCD': 'Consumer Discretionary',
-    'SBUX': 'Consumer Discretionary', 'LOW': 'Consumer Discretionary',
-    # Communication Services
-    'NFLX': 'Communication Services', 'DIS': 'Communication Services',
-    'CMCSA': 'Communication Services', 'T': 'Communication Services',
-    # Consumer Staples
-    'WMT': 'Consumer Staples', 'PG': 'Consumer Staples',
-    'KO': 'Consumer Staples', 'PEP': 'Consumer Staples',
-    'COST': 'Consumer Staples', 'PM': 'Consumer Staples',
-    # Energy
-    'XOM': 'Energy', 'CVX': 'Energy', 'COP': 'Energy',
-    'SLB': 'Energy', 'EOG': 'Energy', 'MPC': 'Energy',
-    # Industrials
-    'BA': 'Industrials', 'CAT': 'Industrials', 'GE': 'Industrials',
-    'RTX': 'Industrials', 'UNP': 'Industrials', 'HON': 'Industrials',
-    # Materials
-    'LIN': 'Materials', 'APD': 'Materials', 'SHW': 'Materials',
-    # Real Estate
-    'AMT': 'Real Estate', 'PLD': 'Real Estate', 'CCI': 'Real Estate',
-    # Utilities
-    'NEE': 'Utilities', 'DUK': 'Utilities', 'SO': 'Utilities',
-}
-
-
 
 class PortfolioRotationBot:
     """Complete portfolio rotation system"""
@@ -75,8 +33,6 @@ class PortfolioRotationBot:
         self.stocks_data = {}
         self.scores = {}
         self.rankings = []
-        self.sector_map = SECTOR_MAP
-        self.vix_data = None  # V8: VIX volatility index for regime detection
 
     # ========================
     # 1. DATA LOADING
@@ -142,33 +98,7 @@ class PortfolioRotationBot:
         for ticker in self.stocks_data.keys():
             self.stocks_data[ticker] = self.add_indicators(self.stocks_data[ticker])
 
-
-        # V8: Load VIX data for regime detection
-        self.load_vix_data()
         logger.info("Indicators calculated")
-
-    def load_vix_data(self):
-        """
-        V8: Load VIX volatility index data
-        
-        VIX is a forward-looking fear indicator (implied volatility)
-        Better than lagging indicators like 200-day MA for regime detection
-        """
-        try:
-            vix_path = f"{self.data_dir}/VIX.csv"
-            vix_df = pd.read_csv(vix_path, index_col=0, parse_dates=True)
-            vix_df.columns = [col.lower() for col in vix_df.columns]
-            
-            # Drop NaN values from the proxy
-            vix_df = vix_df.dropna()
-            
-            self.vix_data = vix_df
-            logger.info(f"Loaded VIX data: {len(vix_df)} days")
-        except Exception as e:
-            logger.warning(f"Could not load VIX data: {e}")
-            logger.warning("Will fall back to adaptive regime detection")
-            self.vix_data = None
-
 
     # ========================
     # 3. STOCK SCORING (0-100)
@@ -176,24 +106,21 @@ class PortfolioRotationBot:
 
     def score_stock(self, ticker, df):
         """
-        V7 STOCK SCORING: 0-150 points
+        V5 SIMPLIFIED SCORING (fewer factors, clearer logic)
 
-        Combines:
-        - V5 base scoring (3 factors: Trend 50pts, Performance 30pts, Risk 20pts)
-        - V6 momentum filters (quality gates)
-        - V7 sector relative strength (sector leadership bonus)
+        Improvements over previous version:
+        - Removed double-counting of EMA alignment
+        - Simplified to 3 clear factors
+        - Better trend focus (50 pts vs 25 pts)
+        - Uses same indicators, just clearer logic
 
-        Returns:
-            float: Score 0-150 (0 = disqualified, higher = better)
+        Performance: 7.7% annual, -19.3% max drawdown (+1.1% vs baseline)
         """
         latest = df.iloc[-1]
         score = 0
 
-        # ====================
-        # V5 BASE SCORING
-        # ====================
-
         # Factor 1: Price Trend (50 pts) - Is it going up?
+        # Check multiple timeframes
         close = latest['close']
         ema_13 = latest['ema_13']
         ema_34 = latest['ema_34']
@@ -236,33 +163,7 @@ class PortfolioRotationBot:
         elif atr_pct < 5:
             score += 5
 
-        # ====================
-        # V6 MOMENTUM FILTERS
-        # ====================
-
-        # CRITICAL FILTER 1: Must be above long-term trend
-        if close < ema_89:
-            return 0  # DISQUALIFY - downtrend
-
-        # CRITICAL FILTER 2: Must have positive momentum
-        if roc < 2:
-            return 0  # DISQUALIFY - weak/negative momentum
-
-        # RSI filters (penalties, not disqualifications)
-        rsi = latest['rsi']
-        if rsi > 75:
-            score *= 0.7  # 30% penalty for overbought
-        if rsi < 30:
-            score *= 0.5  # 50% penalty for oversold
-
-        # ====================
-        # V7 SECTOR BONUS
-        # ====================
-
-        sector_bonus = self.calculate_sector_relative_strength(ticker, df)
-        score += sector_bonus
-
-        return min(score, 150)  # Cap at 150
+        return min(score, 100)
 
     def score_all_stocks(self):
         """Score all stocks"""
@@ -644,170 +545,19 @@ class PortfolioRotationBot:
         else:
             return 0.65   # Bearish (score -2 to -4): Heavy protection
 
-
-    def calculate_vix_regime(self, date):
-        """
-        V8: VIX-BASED REGIME DETECTION
-        
-        Uses VIX volatility index (forward-looking fear indicator) instead of
-        lagging indicators like 200-day MA. VIX reflects market's expectation
-        of future volatility, making it a better early warning system.
-        
-        VIX Regimes (adjusted for our proxy which runs higher than real VIX):
-        - VIX < 30: Very low fear -> 5% cash (aggressive)
-        - VIX 30-40: Low fear -> 15% cash
-        - VIX 40-50: Moderate fear -> 30% cash
-        - VIX 50-70: High fear -> 50% cash (defensive)
-        - VIX > 70: Panic mode -> 70% cash (very defensive)
-        
-        Args:
-            date: Current date for regime detection
-        
-        Returns:
-            float: Cash reserve percentage (0.05 to 0.70)
-        """
-        # Fallback to adaptive regime if VIX data not available
-        if self.vix_data is None:
-            return self.calculate_adaptive_regime(date)
-        
-        # Get VIX value at this date
-        vix_at_date = self.vix_data[self.vix_data.index <= date]
-        if len(vix_at_date) == 0:
-            return self.calculate_adaptive_regime(date)
-        
-        vix = vix_at_date.iloc[-1]['close']
-        
-        # VIX-based regime detection
-        # Lower VIX = lower fear = more aggressive (less cash)
-        # Higher VIX = higher fear = more defensive (more cash)
-        if vix < 30:
-            cash_reserve = 0.05  # Very low fear: aggressive
-        elif vix < 40:
-            cash_reserve = 0.15  # Low fear
-        elif vix < 50:
-            cash_reserve = 0.30  # Moderate fear
-        elif vix < 70:
-            cash_reserve = 0.50  # High fear
-        else:
-            cash_reserve = 0.70  # Panic mode
-        
-        return cash_reserve
-
-    # ========================
-    # V7 OPTIMIZATION METHODS
-    # ========================
-
-    def get_seasonal_cash_multiplier(self, date):
-        """
-        V7 OPTIMIZATION: Seasonal Patterns
-        
-        "Sell in May and go away" effect:
-        - Nov-Apr: Historically strong months (85% multiplier = more invested)
-        - May-Oct: Historically weak months (115% multiplier = more defensive)
-        
-        Returns:
-            float: Multiplier for cash reserve (0.85 = reduce cash, 1.15 = increase cash)
-        """
-        month = date.month
-        
-        if month in [11, 12, 1, 2, 3, 4]:  # Winter months (strong season)
-            return 0.85  # More aggressive (reduce cash by 15%)
-        else:  # Summer months May-Oct (weak season)
-            return 1.15  # More defensive (increase cash by 15%)
-    
-    def should_rebalance_midmonth(self, date, last_rebalance_date):
-        """
-        V7 OPTIMIZATION: Mid-Month Rebalancing
-        
-        Rebalances on day 7-10 instead of day 1 to:
-        - Avoid institutional window dressing at month-end
-        - Get better execution prices
-        - Reduce slippage from crowded trades
-        
-        Returns:
-            bool: True if should rebalance
-        """
-        if last_rebalance_date is None:
-            return True
-        
-        current_month = (date.year, date.month)
-        last_month = (last_rebalance_date.year, last_rebalance_date.month)
-        
-        # New month AND we're on day 7-10
-        return current_month != last_month and 7 <= date.day <= 10
-    
-    def calculate_sector_relative_strength(self, ticker, df_at_date):
-        """
-        V7 OPTIMIZATION: Sector Relative Strength
-        
-        Awards bonus points for stocks outperforming their sector peers.
-        This ensures we buy sector leaders, not just market leaders.
-        
-        Args:
-            ticker: Stock ticker symbol
-            df_at_date: Stock dataframe up to current date
-        
-        Returns:
-            int: Bonus points -10 to +15
-        """
-        if len(df_at_date) < 60:
-            return 0
-        
-        # Get ticker's sector
-        sector = self.sector_map.get(ticker, 'Other')
-        
-        # Calculate 60-day return for this stock
-        ticker_return = (df_at_date['close'].iloc[-1] / df_at_date['close'].iloc[-60] - 1) * 100
-        
-        # Calculate average return for sector peers
-        sector_returns = []
-        for peer_ticker, peer_sector in self.sector_map.items():
-            if peer_sector == sector and peer_ticker != ticker:
-                if peer_ticker in self.stocks_data:
-                    peer_df = self.stocks_data[peer_ticker]
-                    peer_at_date = peer_df[peer_df.index <= df_at_date.index[-1]]
-                    if len(peer_at_date) >= 60:
-                        peer_return = (peer_at_date['close'].iloc[-1] / peer_at_date['close'].iloc[-60] - 1) * 100
-                        sector_returns.append(peer_return)
-        
-        if not sector_returns:
-            return 0
-        
-        # Calculate outperformance vs sector
-        sector_avg = np.mean(sector_returns)
-        relative_strength = ticker_return - sector_avg
-        
-        # Award bonus points
-        if relative_strength > 10:
-            return 15  # Crushing sector
-        elif relative_strength > 5:
-            return 10  # Strong outperformance
-        elif relative_strength > 2:
-            return 5   # Modest outperformance
-        elif relative_strength < -5:
-            return -10  # Lagging sector
-        
-        return 0
-
-
     def backtest_with_bear_protection(self, top_n=10, rebalance_freq='M',
                                        bear_cash_reserve=0.7, bull_cash_reserve=0.2,
-                                       use_adaptive_regime=False, use_vix_regime=False, trading_fee_pct=0.001):
+                                       use_adaptive_regime=False, trading_fee_pct=0.001):
         """
-        Backtest with BEAR MARKET PROTECTION + V7 OPTIMIZATIONS + V8 VIX REGIME
-        - V7: Mid-month rebalancing (day 7-10)
+        Backtest with BEAR MARKET PROTECTION
+        Key idea: Reduce exposure (increase cash) when market is declining
 
-        - V7: Seasonal cash adjustment (winter aggressive, summer defensive)
-        - V7: Sector relative strength scoring
-        - V8: VIX-based regime detection (forward-looking fear indicator)
-        - V6: Momentum quality filters (disqualify weak trends)
         Args:
             top_n: Number of stocks to hold
             rebalance_freq: 'M' for monthly, 'W' for weekly
             bear_cash_reserve: Cash % in bear market (0.7 = 70%)
             bull_cash_reserve: Cash % in bull market (0.2 = 20%)
             trading_fee_pct: Trading fee as percentage (0.001 = 0.1% per trade)
-            use_vix_regime: Use VIX volatility index for regime (V8)
         """
         logger.info(f"Starting BEAR PROTECTION backtest:")
         logger.info(f"  - Bull market cash: {bull_cash_reserve*100:.0f}%")
@@ -820,14 +570,23 @@ class PortfolioRotationBot:
 
         # Track portfolio
         portfolio_values = []
-        holdings = {}
         cash = self.initial_capital
-        last_rebalance_date = None  # V7: Changed from last_rebalance_month
+        holdings = {}
+        last_rebalance_month = None
+        last_rebalance_week = None
 
         for date in dates[100:]:  # Skip first 100 days
+            current_month = date.month
+            current_week = date.isocalendar()[1]
 
-            # V7: Use mid-month rebalancing (day 7-10)
-            should_rebalance = self.should_rebalance_midmonth(date, last_rebalance_date)
+            # Determine rebalance
+            should_rebalance = False
+            if rebalance_freq == 'M' and current_month != last_rebalance_month:
+                should_rebalance = True
+                last_rebalance_month = current_month
+            elif rebalance_freq == 'W' and current_week != last_rebalance_week:
+                should_rebalance = True
+                last_rebalance_week = current_week
 
             if should_rebalance:
                 # Liquidate current holdings
@@ -840,14 +599,8 @@ class PortfolioRotationBot:
                         cash += sale_value - fee
                 holdings = {}
 
-                # V7: Track rebalance date for mid-month timing
-                last_rebalance_date = date
-
-                # V8: Use VIX regime (highest priority), or adaptive, or simple bear/bull
-                if use_vix_regime:
-                    cash_reserve = self.calculate_vix_regime(date)
-                    regime = f"VIX ({cash_reserve*100:.0f}% cash)"
-                elif use_adaptive_regime:
+                # Use adaptive regime detection or fallback to simple bear/bull
+                if use_adaptive_regime:
                     cash_reserve = self.calculate_adaptive_regime(date)
                     regime = f"ADAPTIVE ({cash_reserve*100:.0f}% cash)"
                 else:
@@ -867,9 +620,7 @@ class PortfolioRotationBot:
                     cash_reserve = bear_cash_reserve if is_bear_market else bull_cash_reserve
                     regime = '🐻 BEAR' if is_bear_market else '🐂 BULL'
 
-                # V7: Apply seasonal adjustment
-                seasonal_multiplier = self.get_seasonal_cash_multiplier(date)
-                cash_reserve = max(0.05, min(0.70, cash_reserve * seasonal_multiplier))
+                logger.info(f"{date.date()}: {regime} - Cash reserve: {cash_reserve*100:.0f}%")
 
                 # Score all stocks
                 current_scores = {}
@@ -883,7 +634,7 @@ class PortfolioRotationBot:
 
                 # Get top N stocks
                 ranked = sorted(current_scores.items(), key=lambda x: x[1], reverse=True)
-                top_stocks = [t for t, s in ranked if s > 0][:top_n]  # V7: Filter out disqualified stocks (score=0)
+                top_stocks = [t for t, s in ranked[:top_n]]
 
                 # Allocate capital
                 invest_amount = cash * (1 - cash_reserve)
