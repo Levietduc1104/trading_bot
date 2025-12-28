@@ -693,6 +693,102 @@ class PortfolioRotationBot:
         
         return cash_reserve
 
+    def calculate_market_trend_strength(self, date):
+        """
+        MARKET REGIME FILTER (Time-Series Momentum)
+
+        Determines overall market strength using S&P 500 index (SPY).
+        Returns a continuous trend strength score instead of binary signal.
+
+        Formula:
+            trend_strength = clip((SPY_price / MA200 - 1) / 0.15, 0, 1)
+
+        Where:
+            - 0 = weak / bearish market (SPY is 15%+ below MA200)
+            - 1 = strong / bullish market (SPY is 15%+ above MA200)
+            - 0.5 = neutral (SPY is at MA200)
+
+        This approach:
+            - Avoids hindsight bias (uses only data up to current date)
+            - Reduces whipsaw effects (continuous vs binary signal)
+            - Provides proportional market strength assessment
+
+        Args:
+            date: Current date for trend strength calculation
+
+        Returns:
+            float: Trend strength from 0.0 (weak/bearish) to 1.0 (strong/bullish)
+        """
+        # Get SPY data
+        spy_data = self.stocks_data.get('SPY')
+        if spy_data is None:
+            logger.warning("SPY data not available, returning neutral trend strength")
+            return 0.5  # Neutral if no data
+
+        # Get data up to current date
+        df = spy_data[spy_data.index <= date]
+        if len(df) < 200:
+            logger.warning(f"Insufficient data for 200-day MA at {date}, returning neutral")
+            return 0.5  # Neutral if insufficient data
+
+        # Get current price and 200-day MA
+        current_price = df.iloc[-1]['close']
+        ma200 = df['close'].tail(200).mean()
+
+        # Calculate trend strength
+        # (price / MA200 - 1) gives the percentage deviation from MA200
+        # Dividing by 0.15 normalizes it so ±15% deviation maps to [0, 1]
+        price_deviation = (current_price / ma200 - 1) / 0.15
+
+        # Clip to [0, 1] range
+        trend_strength = np.clip(price_deviation + 1.0, 0.0, 1.0)
+
+        return trend_strength
+
+    def calculate_stock_volatility(self, ticker, date, lookback_days=40):
+        """
+        Calculate historical volatility for a stock (no hindsight bias)
+
+        Uses standard deviation of returns over lookback period.
+        Default 40 days (~2 months) balances recency vs stability.
+
+        Args:
+            ticker: Stock ticker symbol
+            date: Current date (only uses data up to this date)
+            lookback_days: Number of days to calculate volatility (default 40)
+
+        Returns:
+            float: Annualized volatility (standard deviation of returns)
+                   Returns 0.20 (20%) as default if insufficient data
+        """
+        if ticker not in self.stocks_data:
+            return 0.20  # Default 20% volatility
+
+        df = self.stocks_data[ticker]
+        df_at_date = df[df.index <= date]
+
+        if len(df_at_date) < lookback_days + 1:
+            return 0.20  # Default if insufficient history
+
+        # Calculate returns over lookback period
+        recent_prices = df_at_date['close'].tail(lookback_days + 1)
+        returns = recent_prices.pct_change().dropna()
+
+        if len(returns) < 10:  # Need minimum data points
+            return 0.20
+
+        # Calculate volatility (std dev of returns)
+        volatility = returns.std()
+
+        # Annualize: daily vol * sqrt(252 trading days)
+        annualized_vol = volatility * np.sqrt(252)
+
+        # Safety bounds: cap between 5% and 100%
+        # (prevents extreme values from breaking allocation)
+        annualized_vol = np.clip(annualized_vol, 0.05, 1.0)
+
+        return annualized_vol
+
     # ========================
     # V7 OPTIMIZATION METHODS
     # ========================
@@ -792,14 +888,18 @@ class PortfolioRotationBot:
 
     def backtest_with_bear_protection(self, top_n=10, rebalance_freq='M',
                                        bear_cash_reserve=0.7, bull_cash_reserve=0.2,
-                                       use_adaptive_regime=False, use_vix_regime=False, trading_fee_pct=0.001):
+                                       use_adaptive_regime=False, use_vix_regime=False,
+                                       use_trend_strength=False, use_inverse_vol_weighting=False,
+                                       use_adaptive_weighting=False, trading_fee_pct=0.001):
         """
-        Backtest with BEAR MARKET PROTECTION + V7 OPTIMIZATIONS + V8 VIX REGIME
+        Backtest with BEAR MARKET PROTECTION + V7 OPTIMIZATIONS + V8 VIX REGIME + V10 INVERSE VOL + V11 HYBRID
         - V7: Mid-month rebalancing (day 7-10)
-
         - V7: Seasonal cash adjustment (winter aggressive, summer defensive)
         - V7: Sector relative strength scoring
         - V8: VIX-based regime detection (forward-looking fear indicator)
+        - V9: Market trend strength (time-series momentum, continuous)
+        - V10: Inverse volatility position weighting (risk-parity)
+        - V11: Adaptive weighting (equal in bull, inverse-vol in bear) ✨
         - V6: Momentum quality filters (disqualify weak trends)
         Args:
             top_n: Number of stocks to hold
@@ -808,6 +908,9 @@ class PortfolioRotationBot:
             bull_cash_reserve: Cash % in bull market (0.2 = 20%)
             trading_fee_pct: Trading fee as percentage (0.001 = 0.1% per trade)
             use_vix_regime: Use VIX volatility index for regime (V8)
+            use_trend_strength: Use market trend strength for regime (V9)
+            use_inverse_vol_weighting: Use inverse volatility position weighting (V10)
+            use_adaptive_weighting: Adaptively switch between equal and inverse vol based on VIX (V11)
         """
         logger.info(f"Starting BEAR PROTECTION backtest:")
         logger.info(f"  - Bull market cash: {bull_cash_reserve*100:.0f}%")
@@ -843,10 +946,17 @@ class PortfolioRotationBot:
                 # V7: Track rebalance date for mid-month timing
                 last_rebalance_date = date
 
-                # V8: Use VIX regime (highest priority), or adaptive, or simple bear/bull
+                # Regime detection priority: VIX > Trend Strength > Adaptive > Simple Bear/Bull
                 if use_vix_regime:
                     cash_reserve = self.calculate_vix_regime(date)
                     regime = f"VIX ({cash_reserve*100:.0f}% cash)"
+                elif use_trend_strength:
+                    # V9: Use continuous trend strength to calculate cash reserve
+                    trend_strength = self.calculate_market_trend_strength(date)
+                    # Convert trend strength (0-1) to cash reserve (70%-5%)
+                    # Strong trend (1.0) = 5% cash, Weak trend (0.0) = 70% cash
+                    cash_reserve = 0.70 - (trend_strength * 0.65)
+                    regime = f"TREND ({trend_strength:.2f} strength, {cash_reserve*100:.0f}% cash)"
                 elif use_adaptive_regime:
                     cash_reserve = self.calculate_adaptive_regime(date)
                     regime = f"ADAPTIVE ({cash_reserve*100:.0f}% cash)"
@@ -885,19 +995,84 @@ class PortfolioRotationBot:
                 ranked = sorted(current_scores.items(), key=lambda x: x[1], reverse=True)
                 top_stocks = [t for t, s in ranked if s > 0][:top_n]  # V7: Filter out disqualified stocks (score=0)
 
-                # Allocate capital
+                # V10/V11: Calculate position sizes (equal, inverse vol, or adaptive)
                 invest_amount = cash * (1 - cash_reserve)
-                allocation_per_stock = invest_amount / len(top_stocks) if top_stocks else 0
 
-                # Buy top stocks
+                if use_adaptive_weighting and top_stocks:
+                    # V11: ADAPTIVE WEIGHTING - Switch based on VIX regime
+                    # Calm market (VIX < 30) → Equal weighting (max returns)
+                    # Stressed market (VIX >= 30) → Inverse vol (risk control)
+
+                    # Get current VIX value
+                    if self.vix_data is not None:
+                        vix_at_date = self.vix_data[self.vix_data.index <= date]
+                        if len(vix_at_date) > 0:
+                            current_vix = vix_at_date.iloc[-1]['close']
+                        else:
+                            current_vix = 50  # Default to defensive
+                    else:
+                        current_vix = 50  # Default to defensive if no VIX data
+
+                    # Decision threshold: VIX < 30 = calm, VIX >= 30 = stressed
+                    if current_vix < 30:
+                        # CALM MARKET: Equal weighting for maximum returns
+                        allocation_per_stock = invest_amount / len(top_stocks) if top_stocks else 0
+                        allocations = {ticker: allocation_per_stock for ticker in top_stocks}
+                    else:
+                        # STRESSED MARKET: Inverse volatility for risk control
+                        risk_adjusted_weights = {}
+                        for ticker, score in ranked[:top_n]:
+                            if score > 0:
+                                volatility = self.calculate_stock_volatility(ticker, date, lookback_days=40)
+                                risk_adjusted_weights[ticker] = score / volatility
+
+                        total_risk_adj = sum(risk_adjusted_weights.values())
+                        if total_risk_adj > 0:
+                            allocations = {
+                                ticker: (weight / total_risk_adj) * invest_amount
+                                for ticker, weight in risk_adjusted_weights.items()
+                            }
+                        else:
+                            allocations = {ticker: invest_amount / len(top_stocks) for ticker in top_stocks}
+
+                elif use_inverse_vol_weighting and top_stocks:
+                    # V10: INVERSE VOLATILITY WEIGHTING (always on)
+                    # weight_i = (score_i / vol_i) / sum(score_j / vol_j)
+                    # Higher score + lower volatility = larger position
+
+                    # Calculate score/volatility ratios for each stock
+                    risk_adjusted_weights = {}
+                    for ticker, score in ranked[:top_n]:
+                        if score > 0:  # Only qualified stocks
+                            volatility = self.calculate_stock_volatility(ticker, date, lookback_days=40)
+                            # weight proportional to score/volatility
+                            risk_adjusted_weights[ticker] = score / volatility
+
+                    # Normalize weights to sum to 1.0
+                    total_risk_adj = sum(risk_adjusted_weights.values())
+                    if total_risk_adj > 0:
+                        allocations = {
+                            ticker: (weight / total_risk_adj) * invest_amount
+                            for ticker, weight in risk_adjusted_weights.items()
+                        }
+                    else:
+                        # Fallback to equal weight if calculation fails
+                        allocations = {ticker: invest_amount / len(top_stocks) for ticker in top_stocks}
+                else:
+                    # V8: EQUAL WEIGHTING (baseline)
+                    allocation_per_stock = invest_amount / len(top_stocks) if top_stocks else 0
+                    allocations = {ticker: allocation_per_stock for ticker in top_stocks}
+
+                # Buy top stocks with calculated allocations
                 for ticker in top_stocks:
                     df_at_date = self.stocks_data[ticker][self.stocks_data[ticker].index <= date]
                     if len(df_at_date) > 0:
                         current_price = df_at_date.iloc[-1]['close']
-                        shares = allocation_per_stock / current_price
+                        allocation_amount = allocations.get(ticker, 0)
+                        shares = allocation_amount / current_price
                         holdings[ticker] = shares
-                        fee = allocation_per_stock * trading_fee_pct
-                        cash -= (allocation_per_stock + fee)
+                        fee = allocation_amount * trading_fee_pct
+                        cash -= (allocation_amount + fee)
 
             # Calculate daily portfolio value
             stocks_value = 0

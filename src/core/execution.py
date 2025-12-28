@@ -72,19 +72,20 @@ def run_backtest(data_dir='sp500_data/daily', initial_capital=100000):
     logger.info("Scoring stocks...")
     bot.score_all_stocks()
 
-    logger.info("Running backtest with V8 VIX REGIME DETECTION...")
+    logger.info("Running backtest with V11 ADAPTIVE HYBRID WEIGHTING...")
     logger.info("Configuration:")
-    logger.info("V8 uses VIX volatility index (forward-looking fear indicator)")
-    logger.info("  - Monthly rebalancing")
-    logger.info("  - Dynamic cash reserve (5% to 65%)")
-    logger.info("  - Market factors: Trend, Momentum, Volatility, Breadth")
+    logger.info("  V11: Best of V8 + V10 - Adaptive position weighting")
+    logger.info("  - VIX < 30: Equal weighting (maximize returns in calm markets)")
+    logger.info("  - VIX >= 30: Inverse volatility weighting (minimize risk in stress)")
+    logger.info("  - Monthly rebalancing (day 7-10)")
+    logger.info("  - Dynamic cash reserve (5% to 70% based on VIX)")
     logger.info("  - Trading fee: 0.1% per trade (10 basis points)")
 
     portfolio_df = bot.backtest_with_bear_protection(
         top_n=10,
         rebalance_freq='M',
-        use_adaptive_regime=True,
-        use_vix_regime=True,  # V8: Use VIX fear index for regime detection
+        use_vix_regime=True,  # V8: Use VIX for regime detection
+        use_adaptive_weighting=True,  # V11: Adaptive position weighting
         trading_fee_pct=0.001  # 0.1% fee per trade
     )
 
@@ -169,7 +170,7 @@ def log_metrics(metrics):
         logger.info(f"  {year}: {ret:6.1f}% {status}")
 
 
-def save_to_database(portfolio_df, metrics, strategy_type='ADAPTIVE_REGIME'):
+def save_to_database(portfolio_df, metrics, strategy_type='V11_ADAPTIVE_HYBRID'):
     """Save results to database"""
     log_header("STEP 2: SAVING TO DATABASE")
 
@@ -271,7 +272,7 @@ def create_text_report(portfolio_df, metrics, output_dir='output/reports'):
         f.write("PORTFOLIO TRADING SYSTEM - PERFORMANCE REPORT\n")
         f.write("=" * 80 + "\n")
         f.write(f"Generated: {timestamp}\n")
-        f.write(f"Strategy: Adaptive Multi-Factor Regime Detection\n")
+        f.write(f"Strategy: V11 Adaptive Hybrid Weighting\n")
         f.write("=" * 80 + "\n\n")
 
         # Summary metrics
@@ -300,14 +301,15 @@ def create_text_report(portfolio_df, metrics, output_dir='output/reports'):
         f.write("\n" + "=" * 80 + "\n")
         f.write("STRATEGY CONFIGURATION\n")
         f.write("=" * 80 + "\n")
+        f.write("  V11: ADAPTIVE HYBRID WEIGHTING\n")
         f.write("  - Portfolio Size: Top 10 stocks\n")
-        f.write("  - Rebalancing: Monthly\n")
-        f.write("  - Cash Reserve: Dynamic (5% to 65%)\n")
-        f.write("  - Market Factors:\n")
-        f.write("    * Trend (200-day MA)\n")
-        f.write("    * Momentum (50-day ROC)\n")
-        f.write("    * Volatility (30-day vs 1-year)\n")
-        f.write("    * Market Breadth (% stocks > 200 MA)\n\n")
+        f.write("  - Rebalancing: Monthly (day 7-10 of each month)\n")
+        f.write("  - Cash Reserve: Dynamic (5% to 70% based on VIX)\n")
+        f.write("  - Position Weighting:\n")
+        f.write("    * VIX < 30:  Equal weighting (maximize returns)\n")
+        f.write("    * VIX >= 30: Inverse volatility weighting (minimize risk)\n")
+        f.write("  - Regime Detection: VIX-based (forward-looking)\n")
+        f.write("  - Trading Fee: 0.1% per trade\n\n")
 
         f.write("=" * 80 + "\n")
         f.write("END OF REPORT\n")
@@ -399,9 +401,10 @@ def main():
             logger.warning("  ⚠️  Visualization: Failed to generate")
         logger.info("")
         logger.info(f"Run ID: {run_id}")
-        logger.info(f"Strategy: Adaptive Multi-Factor Regime Detection")
+        logger.info(f"Strategy: V11 Adaptive Hybrid Weighting")
         logger.info(f"Annual Return: {metrics['annual_return']:.1f}%")
         logger.info(f"Max Drawdown: {metrics['max_drawdown']:.1f}%")
+        logger.info(f"Sharpe Ratio: {metrics['sharpe_ratio']:.2f}")
         logger.info("")
         logger.info(f"Completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
