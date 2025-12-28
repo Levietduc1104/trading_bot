@@ -72,11 +72,12 @@ def run_backtest(data_dir='sp500_data/daily', initial_capital=100000):
     logger.info("Scoring stocks...")
     bot.score_all_stocks()
 
-    logger.info("Running backtest with V11 ADAPTIVE HYBRID WEIGHTING...")
+    logger.info("Running backtest with V13 MOMENTUM-STRENGTH WEIGHTING...")
     logger.info("Configuration:")
-    logger.info("  V11: Best of V8 + V10 - Adaptive position weighting")
-    logger.info("  - VIX < 30: Equal weighting (maximize returns in calm markets)")
+    logger.info("  V13: V12 + Momentum-Strength Weighting")
+    logger.info("  - VIX < 30: Momentum-strength weighting (weight ∝ momentum/volatility)")
     logger.info("  - VIX >= 30: Inverse volatility weighting (minimize risk in stress)")
+    logger.info("  - Drawdown control: Progressive exposure reduction (0.25x to 1.0x)")
     logger.info("  - Monthly rebalancing (day 7-10)")
     logger.info("  - Dynamic cash reserve (5% to 70% based on VIX)")
     logger.info("  - Trading fee: 0.1% per trade (10 basis points)")
@@ -86,6 +87,8 @@ def run_backtest(data_dir='sp500_data/daily', initial_capital=100000):
         rebalance_freq='M',
         use_vix_regime=True,  # V8: Use VIX for regime detection
         use_adaptive_weighting=True,  # V11: Adaptive position weighting
+        use_momentum_weighting=True,  # V13: Momentum-strength weighting 🚀
+        use_drawdown_control=True,  # V12: Drawdown control 🛡️
         trading_fee_pct=0.001  # 0.1% fee per trade
     )
 
@@ -170,7 +173,7 @@ def log_metrics(metrics):
         logger.info(f"  {year}: {ret:6.1f}% {status}")
 
 
-def save_to_database(portfolio_df, metrics, strategy_type='V11_ADAPTIVE_HYBRID'):
+def save_to_database(portfolio_df, metrics, strategy_type='V13_MOMENTUM_STRENGTH'):
     """Save results to database"""
     log_header("STEP 2: SAVING TO DATABASE")
 
@@ -272,7 +275,7 @@ def create_text_report(portfolio_df, metrics, output_dir='output/reports'):
         f.write("PORTFOLIO TRADING SYSTEM - PERFORMANCE REPORT\n")
         f.write("=" * 80 + "\n")
         f.write(f"Generated: {timestamp}\n")
-        f.write(f"Strategy: V11 Adaptive Hybrid Weighting\n")
+        f.write(f"Strategy: V13 Momentum-Strength Weighting\n")
         f.write("=" * 80 + "\n\n")
 
         # Summary metrics
@@ -301,13 +304,18 @@ def create_text_report(portfolio_df, metrics, output_dir='output/reports'):
         f.write("\n" + "=" * 80 + "\n")
         f.write("STRATEGY CONFIGURATION\n")
         f.write("=" * 80 + "\n")
-        f.write("  V11: ADAPTIVE HYBRID WEIGHTING\n")
+        f.write("  V13: MOMENTUM-STRENGTH WEIGHTING + DRAWDOWN CONTROL\n")
         f.write("  - Portfolio Size: Top 10 stocks\n")
         f.write("  - Rebalancing: Monthly (day 7-10 of each month)\n")
         f.write("  - Cash Reserve: Dynamic (5% to 70% based on VIX)\n")
         f.write("  - Position Weighting:\n")
-        f.write("    * VIX < 30:  Equal weighting (maximize returns)\n")
+        f.write("    * VIX < 30:  Momentum-strength weighting (weight ∝ momentum/volatility)\n")
         f.write("    * VIX >= 30: Inverse volatility weighting (minimize risk)\n")
+        f.write("  - Drawdown Control:\n")
+        f.write("    * DD < 10%:  100% invested\n")
+        f.write("    * DD 10-15%: 75% invested\n")
+        f.write("    * DD 15-20%: 50% invested\n")
+        f.write("    * DD ≥ 20%:  25% invested (maximum defense)\n")
         f.write("  - Regime Detection: VIX-based (forward-looking)\n")
         f.write("  - Trading Fee: 0.1% per trade\n\n")
 
@@ -401,7 +409,7 @@ def main():
             logger.warning("  ⚠️  Visualization: Failed to generate")
         logger.info("")
         logger.info(f"Run ID: {run_id}")
-        logger.info(f"Strategy: V11 Adaptive Hybrid Weighting")
+        logger.info(f"Strategy: V13 Momentum-Strength Weighting + Drawdown Control")
         logger.info(f"Annual Return: {metrics['annual_return']:.1f}%")
         logger.info(f"Max Drawdown: {metrics['max_drawdown']:.1f}%")
         logger.info(f"Sharpe Ratio: {metrics['sharpe_ratio']:.2f}")
