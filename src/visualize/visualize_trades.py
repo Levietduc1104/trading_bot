@@ -35,14 +35,17 @@ def create_trade_visualizations():
     bot.prepare_data()
     bot.score_all_stocks()
     
-    # Run backtest with ADAPTIVE REGIME
-    logger.info("\nRunning backtest with ADAPTIVE MULTI-FACTOR REGIME...")
-    logger.info("Strategy: Dynamic cash (5-65%) based on 4 market factors")
+    # Run backtest with V11 ADAPTIVE HYBRID
+    logger.info("\nRunning backtest with V11 ADAPTIVE HYBRID WEIGHTING...")
+    logger.info("Strategy: Adaptive position weighting based on VIX")
+    logger.info("  - VIX < 30: Equal weighting (calm markets)")
+    logger.info("  - VIX >= 30: Inverse volatility weighting (stressed markets)")
     logger.info("Trading fee: 0.1% per trade")
     portfolio_df = bot.backtest_with_bear_protection(
         top_n=10,
         rebalance_freq='M',
-        use_adaptive_regime=True,  # Use adaptive regime detection
+        use_vix_regime=True,  # VIX regime detection
+        use_adaptive_weighting=True,  # V11: Adaptive hybrid weighting
         trading_fee_pct=0.001  # 0.1% fee per trade
     )
     trades_log = track_trades_with_adaptive_regime(bot, top_n=10)
