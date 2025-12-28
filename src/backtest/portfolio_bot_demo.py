@@ -789,6 +789,167 @@ class PortfolioRotationBot:
 
         return annualized_vol
 
+    def calculate_portfolio_volatility(self, portfolio_values_df, lookback_days=60):
+        """
+        V12: Calculate realized portfolio volatility (no hindsight bias)
+
+        Uses rolling window of past portfolio returns to estimate current risk.
+        This is NOT predicting returns - just normalizing risk exposure.
+
+        Args:
+            portfolio_values_df: DataFrame with 'value' column (portfolio value over time)
+            lookback_days: Rolling window for volatility calculation (default 60 days)
+
+        Returns:
+            float: Annualized portfolio volatility (standard deviation)
+                   Returns None if insufficient data
+        """
+        if len(portfolio_values_df) < lookback_days + 1:
+            return None  # Insufficient history
+
+        # Calculate daily returns
+        recent_values = portfolio_values_df['value'].tail(lookback_days + 1)
+        returns = recent_values.pct_change().dropna()
+
+        if len(returns) < 30:  # Need minimum 30 days
+            return None
+
+        # Calculate volatility (standard deviation of returns)
+        daily_vol = returns.std()
+
+        # Annualize: daily vol * sqrt(252 trading days)
+        annualized_vol = daily_vol * np.sqrt(252)
+
+        return annualized_vol
+
+    def calculate_momentum_strength_weight(self, ticker, date, lookback_months=9):
+        """
+        Calculate momentum-strength weight for position sizing (zero-bias)
+
+        Uses momentum/volatility ratio to allocate more capital to strong,
+        stable trends and less to weak or volatile stocks.
+
+        Formula: weight ∝ momentum / volatility
+
+        Where:
+        - momentum = 6-12 month return (default 9 months = 189 days)
+        - volatility = rolling past volatility (annualized)
+
+        Why this works:
+        1. Strong trends get more capital (trend following)
+        2. High volatility gets less capital (risk control)
+        3. Momentum is persistent (academic evidence)
+        4. No prediction, just extrapolation
+
+        This is zero-bias because:
+        - Uses only historical data (backward-looking)
+        - Momentum persistence is empirical fact (Jegadeesh & Titman 1993)
+        - Not optimizing or fitting to specific periods
+
+        Args:
+            ticker: Stock ticker symbol
+            date: Current date (only uses data up to this date)
+            lookback_months: Momentum lookback in months (default 9 = 6-12 month range)
+
+        Returns:
+            float: Momentum-strength ratio (unnormalized weight)
+                   Returns 0 if insufficient data or negative momentum
+
+        Example:
+            - Stock A: +30% return, 15% vol → weight = 30/15 = 2.0
+            - Stock B: +20% return, 10% vol → weight = 20/10 = 2.0
+            - Stock C: +40% return, 40% vol → weight = 40/40 = 1.0
+            - Stock D: -5% return (negative) → weight = 0 (exclude)
+        """
+        if ticker not in self.stocks_data:
+            return 0.0
+
+        df = self.stocks_data[ticker]
+        df_at_date = df[df.index <= date]
+
+        lookback_days = lookback_months * 21  # Approximate trading days per month
+
+        if len(df_at_date) < lookback_days + 1:
+            return 0.0  # Insufficient history
+
+        # Calculate momentum (return over lookback period)
+        price_current = df_at_date['close'].iloc[-1]
+        price_past = df_at_date['close'].iloc[-lookback_days-1]
+        momentum = (price_current / price_past - 1) * 100  # Return as percentage
+
+        # Exclude negative momentum (we only want positive trends)
+        if momentum <= 0:
+            return 0.0
+
+        # Calculate volatility (same as stock-level vol calculation)
+        volatility = self.calculate_stock_volatility(ticker, date, lookback_days=40)
+
+        # Momentum-strength ratio
+        # Higher momentum + lower vol = higher weight
+        weight = momentum / volatility
+
+        return weight
+
+    def calculate_drawdown_multiplier(self, portfolio_values_df):
+        """
+        V12: Calculate exposure multiplier based on current drawdown from peak
+
+        **DRAWDOWN CONTROL**: The most powerful risk management tool for cash-only trading.
+        Progressively reduces exposure as drawdown increases, preventing drawdown acceleration
+        and preserving capital for recovery.
+
+        Rules:
+        - Drawdown < 10%:  1.00x exposure (fully invested)
+        - Drawdown 10-15%: 0.75x exposure (hold 25% cash)
+        - Drawdown 15-20%: 0.50x exposure (hold 50% cash)
+        - Drawdown ≥ 20%:  0.25x exposure (hold 75% cash, maximum defense)
+
+        Why this increases long-term return:
+        1. Prevents drawdown acceleration (exponential losses)
+        2. Preserves capital for recovery (geometric return boost)
+        3. Improves Sharpe ratio (lower volatility)
+        4. Counter-intuitive: Lower arithmetic return → Higher geometric return
+
+        This is zero-bias because:
+        - Uses only historical equity curve (no prediction)
+        - Pure risk management (not market timing)
+        - Mechanical rule (no optimization)
+
+        Args:
+            portfolio_values_df: DataFrame with 'value' column (portfolio value over time)
+
+        Returns:
+            float: Exposure multiplier (0.25 to 1.0)
+
+        Example:
+            - Current value: $90k, Peak: $100k → DD = 10% → multiplier = 0.75
+            - Current value: $80k, Peak: $100k → DD = 20% → multiplier = 0.25
+            - Current value: $105k, Peak: $100k → DD = 0% → multiplier = 1.0 (new peak!)
+        """
+        if len(portfolio_values_df) < 2:
+            return 1.0  # Default to fully invested if insufficient history
+
+        # Calculate current drawdown from peak
+        current_value = portfolio_values_df['value'].iloc[-1]
+        peak_value = portfolio_values_df['value'].max()
+
+        # Drawdown as percentage
+        drawdown_pct = ((current_value - peak_value) / peak_value) * 100
+
+        # Apply tiered exposure reduction
+        if drawdown_pct >= -10:
+            # Less than 10% drawdown: fully invested
+            return 1.0
+        elif drawdown_pct >= -15:
+            # 10-15% drawdown: reduce to 75%
+            return 0.75
+        elif drawdown_pct >= -20:
+            # 15-20% drawdown: reduce to 50%
+            return 0.50
+        else:
+            # 20%+ drawdown: maximum defense (25% invested)
+            return 0.25
+
     # ========================
     # V7 OPTIMIZATION METHODS
     # ========================
@@ -890,9 +1051,10 @@ class PortfolioRotationBot:
                                        bear_cash_reserve=0.7, bull_cash_reserve=0.2,
                                        use_adaptive_regime=False, use_vix_regime=False,
                                        use_trend_strength=False, use_inverse_vol_weighting=False,
-                                       use_adaptive_weighting=False, trading_fee_pct=0.001):
+                                       use_adaptive_weighting=False, use_momentum_weighting=False,
+                                       use_drawdown_control=False, trading_fee_pct=0.001):
         """
-        Backtest with BEAR MARKET PROTECTION + V7 OPTIMIZATIONS + V8 VIX REGIME + V10 INVERSE VOL + V11 HYBRID
+        Backtest with BEAR MARKET PROTECTION + V7 OPTIMIZATIONS + V8 VIX REGIME + V10 INVERSE VOL + V11 HYBRID + V12 DRAWDOWN + V13 MOMENTUM
         - V7: Mid-month rebalancing (day 7-10)
         - V7: Seasonal cash adjustment (winter aggressive, summer defensive)
         - V7: Sector relative strength scoring
@@ -900,6 +1062,8 @@ class PortfolioRotationBot:
         - V9: Market trend strength (time-series momentum, continuous)
         - V10: Inverse volatility position weighting (risk-parity)
         - V11: Adaptive weighting (equal in bull, inverse-vol in bear) ✨
+        - V12: Portfolio-level drawdown control (progressive exposure reduction) 🛡️
+        - V13: Momentum-strength weighting (momentum/vol ratio instead of equal) 🚀
         - V6: Momentum quality filters (disqualify weak trends)
         Args:
             top_n: Number of stocks to hold
@@ -911,6 +1075,8 @@ class PortfolioRotationBot:
             use_trend_strength: Use market trend strength for regime (V9)
             use_inverse_vol_weighting: Use inverse volatility position weighting (V10)
             use_adaptive_weighting: Adaptively switch between equal and inverse vol based on VIX (V11)
+            use_momentum_weighting: Use momentum-strength weighting instead of equal weight (V13) 🚀
+            use_drawdown_control: Use portfolio-level drawdown control (V12) 🛡️
         """
         logger.info(f"Starting BEAR PROTECTION backtest:")
         logger.info(f"  - Bull market cash: {bull_cash_reserve*100:.0f}%")
@@ -1015,9 +1181,30 @@ class PortfolioRotationBot:
 
                     # Decision threshold: VIX < 30 = calm, VIX >= 30 = stressed
                     if current_vix < 30:
-                        # CALM MARKET: Equal weighting for maximum returns
-                        allocation_per_stock = invest_amount / len(top_stocks) if top_stocks else 0
-                        allocations = {ticker: allocation_per_stock for ticker in top_stocks}
+                        # CALM MARKET: Equal or momentum-strength weighting for maximum returns
+                        if use_momentum_weighting:
+                            # V13: MOMENTUM-STRENGTH WEIGHTING
+                            momentum_weights = {}
+                            for ticker in top_stocks:
+                                weight = self.calculate_momentum_strength_weight(ticker, date, lookback_months=9)
+                                if weight > 0:
+                                    momentum_weights[ticker] = weight
+
+                            # Normalize weights to sum to invest_amount
+                            total_weight = sum(momentum_weights.values())
+                            if total_weight > 0:
+                                allocations = {
+                                    ticker: (weight / total_weight) * invest_amount
+                                    for ticker, weight in momentum_weights.items()
+                                }
+                            else:
+                                # Fallback to equal if all weights are zero
+                                allocation_per_stock = invest_amount / len(top_stocks) if top_stocks else 0
+                                allocations = {ticker: allocation_per_stock for ticker in top_stocks}
+                        else:
+                            # V11: EQUAL WEIGHTING (traditional)
+                            allocation_per_stock = invest_amount / len(top_stocks) if top_stocks else 0
+                            allocations = {ticker: allocation_per_stock for ticker in top_stocks}
                     else:
                         # STRESSED MARKET: Inverse volatility for risk control
                         risk_adjusted_weights = {}
@@ -1059,9 +1246,45 @@ class PortfolioRotationBot:
                         # Fallback to equal weight if calculation fails
                         allocations = {ticker: invest_amount / len(top_stocks) for ticker in top_stocks}
                 else:
-                    # V8: EQUAL WEIGHTING (baseline)
-                    allocation_per_stock = invest_amount / len(top_stocks) if top_stocks else 0
-                    allocations = {ticker: allocation_per_stock for ticker in top_stocks}
+                    # V8/V13: EQUAL OR MOMENTUM-STRENGTH WEIGHTING (baseline)
+                    if use_momentum_weighting:
+                        # V13: MOMENTUM-STRENGTH WEIGHTING
+                        momentum_weights = {}
+                        for ticker in top_stocks:
+                            weight = self.calculate_momentum_strength_weight(ticker, date, lookback_months=9)
+                            if weight > 0:
+                                momentum_weights[ticker] = weight
+
+                        # Normalize weights to sum to invest_amount
+                        total_weight = sum(momentum_weights.values())
+                        if total_weight > 0:
+                            allocations = {
+                                ticker: (weight / total_weight) * invest_amount
+                                for ticker, weight in momentum_weights.items()
+                            }
+                        else:
+                            # Fallback to equal if all weights are zero
+                            allocation_per_stock = invest_amount / len(top_stocks) if top_stocks else 0
+                            allocations = {ticker: allocation_per_stock for ticker in top_stocks}
+                    else:
+                        # V8: EQUAL WEIGHTING (traditional)
+                        allocation_per_stock = invest_amount / len(top_stocks) if top_stocks else 0
+                        allocations = {ticker: allocation_per_stock for ticker in top_stocks}
+
+                # V12: PORTFOLIO-LEVEL DRAWDOWN CONTROL
+                drawdown_multiplier = 1.0  # Default: no adjustment
+                if use_drawdown_control and len(portfolio_values) > 1:
+                    # Calculate current drawdown and apply exposure reduction
+                    portfolio_df = pd.DataFrame(portfolio_values).set_index('date')
+                    drawdown_multiplier = self.calculate_drawdown_multiplier(portfolio_df)
+
+                    # Apply drawdown-based exposure reduction
+                    # Small drawdown → fully invested (1.0x)
+                    # Large drawdown → defensive (0.25x to 0.75x)
+                    allocations = {
+                        ticker: amount * drawdown_multiplier
+                        for ticker, amount in allocations.items()
+                    }
 
                 # Buy top stocks with calculated allocations
                 for ticker in top_stocks:
