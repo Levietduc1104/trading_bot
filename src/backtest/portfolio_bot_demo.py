@@ -890,6 +890,94 @@ class PortfolioRotationBot:
 
         return weight
 
+    def calculate_multi_timeframe_momentum_weight(self, ticker, date):
+        """
+        V15: Multi-Timeframe Momentum Ensemble
+
+        Uses weighted combination of multiple momentum periods instead of single 9-month.
+        This creates a more robust momentum signal that captures different trend phases.
+
+        Formula: weight ∝ momentum_ensemble / volatility
+
+        Where momentum_ensemble =
+            0.15 * 3-month return  (short-term surge)
+          + 0.25 * 6-month return  (medium-term trend)
+          + 0.35 * 9-month return  (primary signal - highest weight)
+          + 0.25 * 12-month return (long-term confirmation)
+
+        Why this works:
+        1. Different horizons capture different market regimes
+        2. Reduces false signals from single-period momentum
+        3. More stable during trend transitions
+        4. Academic evidence: multi-period momentum is more robust
+
+        This is zero-bias because:
+        - Uses only historical data (backward-looking)
+        - Momentum persistence across multiple horizons (empirical)
+        - Simple weighted average (no optimization)
+
+        Args:
+            ticker: Stock ticker symbol
+            date: Current date (only uses data up to this date)
+
+        Returns:
+            float: Multi-timeframe momentum-strength ratio
+                   Returns 0 if insufficient data or negative ensemble
+
+        Example:
+            - 3m: +12%, 6m: +18%, 9m: +25%, 12m: +28%
+            - Ensemble = 0.15*12 + 0.25*18 + 0.35*25 + 0.25*28 = 22.05%
+            - Weight = 22.05 / volatility
+        """
+        if ticker not in self.stocks_data:
+            return 0.0
+
+        df = self.stocks_data[ticker]
+        df_at_date = df[df.index <= date]
+
+        # Need at least 12 months + 1 day of data
+        if len(df_at_date) < 12 * 21 + 1:
+            return 0.0
+
+        price_current = df_at_date['close'].iloc[-1]
+
+        # Calculate returns at different horizons
+        returns = {}
+        lookback_periods = {
+            '3m': 3 * 21,   # ~63 days
+            '6m': 6 * 21,   # ~126 days
+            '9m': 9 * 21,   # ~189 days
+            '12m': 12 * 21  # ~252 days
+        }
+
+        for period_name, lookback_days in lookback_periods.items():
+            if len(df_at_date) >= lookback_days + 1:
+                price_past = df_at_date['close'].iloc[-lookback_days-1]
+                ret = (price_current / price_past - 1) * 100  # Percentage return
+                returns[period_name] = ret
+            else:
+                return 0.0  # Not enough data for this horizon
+
+        # Weighted ensemble (emphasize 9-month as primary signal)
+        momentum_ensemble = (
+            0.15 * returns['3m'] +   # Short-term surge
+            0.25 * returns['6m'] +   # Medium-term trend
+            0.35 * returns['9m'] +   # Primary signal (highest weight)
+            0.25 * returns['12m']    # Long-term confirmation
+        )
+
+        # Exclude negative ensemble momentum
+        if momentum_ensemble <= 0:
+            return 0.0
+
+        # Calculate volatility
+        volatility = self.calculate_stock_volatility(ticker, date, lookback_days=40)
+
+        # Multi-timeframe momentum-strength ratio
+        weight = momentum_ensemble / volatility
+
+        return weight
+
     def calculate_drawdown_multiplier(self, portfolio_values_df):
         """
         V12: Calculate exposure multiplier based on current drawdown from peak
@@ -949,6 +1037,113 @@ class PortfolioRotationBot:
         else:
             # 20%+ drawdown: maximum defense (25% invested)
             return 0.25
+
+    def should_rebalance_with_bands(self, date, last_rebalance_date, holdings,
+                                   current_prices, target_allocations,
+                                   weight_drift_threshold=0.25, max_days_no_rebalance=90):
+        """
+        V14: Rebalance Bands - Only rebalance when necessary
+
+        **LET WINNERS RUN**: Instead of forced monthly rebalancing, only rebalance when:
+        1. Position weights drift beyond threshold (default 25%)
+        2. Too long since last rebalance (default 90 days = ~3 months)
+
+        Why this works:
+        1. Lets winners compound (don't cut flowers, water them)
+        2. Reduces transaction costs (less turnover)
+        3. Improves geometric returns (compounding > rebalancing)
+        4. Tax efficient (fewer realized gains)
+
+        This is zero-bias because:
+        - Mechanical rule (no prediction)
+        - Academic evidence: momentum continues (let it run)
+        - Reduces unnecessary trading drag
+
+        Args:
+            date: Current date
+            last_rebalance_date: Date of last rebalance
+            holdings: Current holdings {ticker: shares}
+            current_prices: Current prices {ticker: price}
+            target_allocations: Target dollar allocations {ticker: amount}
+            weight_drift_threshold: Max weight drift before rebalancing (default 25%)
+            max_days_no_rebalance: Maximum days without rebalancing (default 90)
+
+        Returns:
+            tuple: (should_rebalance: bool, reason: str)
+
+        Example:
+            - Target: AAPL 10%, Current: 12% → drift = 20% → NO rebalance
+            - Target: AAPL 10%, Current: 13.5% → drift = 35% → YES rebalance
+            - Last rebalance: 95 days ago → YES rebalance (max days exceeded)
+        """
+        # First rebalance: always rebalance
+        if last_rebalance_date is None:
+            return True, "Initial rebalance"
+
+        # Calculate days since last rebalance
+        days_since_rebalance = (date - last_rebalance_date).days
+
+        # Force rebalance if too long (maximum drift control)
+        if days_since_rebalance >= max_days_no_rebalance:
+            return True, f"Max days exceeded ({days_since_rebalance} days)"
+
+        # No holdings: need to rebalance
+        if not holdings or not target_allocations:
+            return True, "No current holdings"
+
+        # Calculate current portfolio value
+        current_value = sum(holdings.get(t, 0) * current_prices.get(t, 0)
+                          for t in holdings.keys())
+
+        if current_value <= 0:
+            return True, "Zero portfolio value"
+
+        # Calculate current weights
+        current_weights = {}
+        for ticker, shares in holdings.items():
+            price = current_prices.get(ticker, 0)
+            current_weights[ticker] = (shares * price) / current_value if current_value > 0 else 0
+
+        # Calculate target weights
+        total_target = sum(target_allocations.values())
+        target_weights = {}
+        if total_target > 0:
+            for ticker, amount in target_allocations.items():
+                target_weights[ticker] = amount / total_target
+
+        # Calculate maximum weight drift
+        max_drift = 0
+        drift_ticker = None
+
+        # Check all positions (current and target)
+        all_tickers = set(current_weights.keys()) | set(target_weights.keys())
+
+        for ticker in all_tickers:
+            current_weight = current_weights.get(ticker, 0)
+            target_weight = target_weights.get(ticker, 0)
+
+            # Skip if both are zero
+            if current_weight == 0 and target_weight == 0:
+                continue
+
+            # Calculate absolute drift percentage
+            if target_weight > 0:
+                # Drift as percentage of target
+                drift = abs(current_weight - target_weight) / target_weight
+            else:
+                # New position or position to be removed
+                drift = 1.0  # 100% drift (trigger rebalance)
+
+            if drift > max_drift:
+                max_drift = drift
+                drift_ticker = ticker
+
+        # Rebalance if drift exceeds threshold
+        if max_drift > weight_drift_threshold:
+            return True, f"Weight drift {max_drift:.1%} on {drift_ticker} (threshold {weight_drift_threshold:.0%})"
+
+        # No rebalance needed
+        return False, f"Within bands (max drift {max_drift:.1%}, {days_since_rebalance} days)"
 
     # ========================
     # V7 OPTIMIZATION METHODS
@@ -1052,9 +1247,11 @@ class PortfolioRotationBot:
                                        use_adaptive_regime=False, use_vix_regime=False,
                                        use_trend_strength=False, use_inverse_vol_weighting=False,
                                        use_adaptive_weighting=False, use_momentum_weighting=False,
-                                       use_drawdown_control=False, trading_fee_pct=0.001):
+                                       use_multi_timeframe_momentum=False,
+                                       use_drawdown_control=False, use_rebalance_bands=False,
+                                       rebalance_drift_threshold=0.25, trading_fee_pct=0.001):
         """
-        Backtest with BEAR MARKET PROTECTION + V7 OPTIMIZATIONS + V8 VIX REGIME + V10 INVERSE VOL + V11 HYBRID + V12 DRAWDOWN + V13 MOMENTUM
+        Backtest with BEAR MARKET PROTECTION + V7 OPTIMIZATIONS + V8 VIX REGIME + V10 INVERSE VOL + V11 HYBRID + V12 DRAWDOWN + V13 MOMENTUM + V15 MULTI-TIMEFRAME
         - V7: Mid-month rebalancing (day 7-10)
         - V7: Seasonal cash adjustment (winter aggressive, summer defensive)
         - V7: Sector relative strength scoring
@@ -1064,6 +1261,7 @@ class PortfolioRotationBot:
         - V11: Adaptive weighting (equal in bull, inverse-vol in bear) ✨
         - V12: Portfolio-level drawdown control (progressive exposure reduction) 🛡️
         - V13: Momentum-strength weighting (momentum/vol ratio instead of equal) 🚀
+        - V15: Multi-timeframe momentum ensemble (3m+6m+9m+12m) 📊
         - V6: Momentum quality filters (disqualify weak trends)
         Args:
             top_n: Number of stocks to hold
@@ -1076,7 +1274,10 @@ class PortfolioRotationBot:
             use_inverse_vol_weighting: Use inverse volatility position weighting (V10)
             use_adaptive_weighting: Adaptively switch between equal and inverse vol based on VIX (V11)
             use_momentum_weighting: Use momentum-strength weighting instead of equal weight (V13) 🚀
+            use_multi_timeframe_momentum: Use multi-timeframe momentum ensemble (V15) 📊
             use_drawdown_control: Use portfolio-level drawdown control (V12) 🛡️
+            use_rebalance_bands: Use rebalance bands to let winners run (V14) 💎
+            rebalance_drift_threshold: Weight drift threshold for V14 (default 25%)
         """
         logger.info(f"Starting BEAR PROTECTION backtest:")
         logger.info(f"  - Bull market cash: {bull_cash_reserve*100:.0f}%")
@@ -1095,8 +1296,49 @@ class PortfolioRotationBot:
 
         for date in dates[100:]:  # Skip first 100 days
 
-            # V7: Use mid-month rebalancing (day 7-10)
-            should_rebalance = self.should_rebalance_midmonth(date, last_rebalance_date)
+            # V7/V14: Determine if should rebalance
+            if use_rebalance_bands:
+                # V14: REBALANCE BANDS - Only check on mid-month dates for efficiency
+                # First check if it's mid-month (day 7-10)
+                is_midmonth = last_rebalance_date is None or (
+                    (date.year, date.month) != (last_rebalance_date.year, last_rebalance_date.month) and
+                    7 <= date.day <= 10
+                )
+
+                if is_midmonth:
+                    # Now check if we should rebalance based on drift
+                    # Get current prices
+                    current_prices = {}
+                    for ticker in list(holdings.keys()):
+                        df_at_date = self.stocks_data[ticker][self.stocks_data[ticker].index <= date]
+                        if len(df_at_date) > 0:
+                            current_prices[ticker] = df_at_date.iloc[-1]['close']
+
+                    # Simple target: portfolio value split equally
+                    portfolio_value = cash + sum(holdings.get(t, 0) * current_prices.get(t, 0)
+                                                for t in holdings.keys())
+                    invest_amount_estimate = portfolio_value * 0.8  # Rough estimate
+
+                    # Target based on current holdings (simplified)
+                    target_alloc_estimate = {t: invest_amount_estimate / len(holdings)
+                                           for t in holdings.keys()} if holdings else {}
+
+                    should_rebalance, rebalance_reason = self.should_rebalance_with_bands(
+                        date=date,
+                        last_rebalance_date=last_rebalance_date,
+                        holdings=holdings,
+                        current_prices=current_prices,
+                        target_allocations=target_alloc_estimate,
+                        weight_drift_threshold=rebalance_drift_threshold,
+                        max_days_no_rebalance=90
+                    )
+                else:
+                    should_rebalance = False
+                    rebalance_reason = "Not mid-month"
+            else:
+                # V7: Use mid-month rebalancing (day 7-10)
+                should_rebalance = self.should_rebalance_midmonth(date, last_rebalance_date)
+                rebalance_reason = "Mid-month rebalance"
 
             if should_rebalance:
                 # Liquidate current holdings
@@ -1183,10 +1425,16 @@ class PortfolioRotationBot:
                     if current_vix < 30:
                         # CALM MARKET: Equal or momentum-strength weighting for maximum returns
                         if use_momentum_weighting:
-                            # V13: MOMENTUM-STRENGTH WEIGHTING
+                            # V13/V15: MOMENTUM-STRENGTH WEIGHTING
                             momentum_weights = {}
                             for ticker in top_stocks:
-                                weight = self.calculate_momentum_strength_weight(ticker, date, lookback_months=9)
+                                # V15: Use multi-timeframe ensemble if enabled
+                                if use_multi_timeframe_momentum:
+                                    weight = self.calculate_multi_timeframe_momentum_weight(ticker, date)
+                                else:
+                                    # V13: Single-period momentum (9-month)
+                                    weight = self.calculate_momentum_strength_weight(ticker, date, lookback_months=9)
+
                                 if weight > 0:
                                     momentum_weights[ticker] = weight
 
@@ -1248,10 +1496,16 @@ class PortfolioRotationBot:
                 else:
                     # V8/V13: EQUAL OR MOMENTUM-STRENGTH WEIGHTING (baseline)
                     if use_momentum_weighting:
-                        # V13: MOMENTUM-STRENGTH WEIGHTING
+                        # V13/V15: MOMENTUM-STRENGTH WEIGHTING
                         momentum_weights = {}
                         for ticker in top_stocks:
-                            weight = self.calculate_momentum_strength_weight(ticker, date, lookback_months=9)
+                            # V15: Use multi-timeframe ensemble if enabled
+                            if use_multi_timeframe_momentum:
+                                weight = self.calculate_multi_timeframe_momentum_weight(ticker, date)
+                            else:
+                                # V13: Single-period momentum (9-month)
+                                weight = self.calculate_momentum_strength_weight(ticker, date, lookback_months=9)
+
                             if weight > 0:
                                 momentum_weights[ticker] = weight
 
