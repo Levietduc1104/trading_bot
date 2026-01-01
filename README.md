@@ -108,8 +108,12 @@ trading_bot/
 │   │   └── create_vix_proxy.py            # Create VIX proxy from SPY
 │   ├── visualize/
 │   │   └── visualize_trades.py            # Interactive visualizations
-│   └── risk/
-│       └── risk_management_backtest.py    # Risk management tools
+│   ├── risk/
+│   │   └── risk_management_backtest.py    # Risk management tools
+│   └── tests/
+│       ├── README.md                      # Test documentation
+│       ├── test_v22_kelly_position_sizing.py  # V22 validation
+│       └── ...                            # Other experimental tests
 ├── sp500_data/
 │   └── daily/                             # S&P 500 stock CSV files (473 stocks)
 │       ├── AAPL.csv

@@ -1,0 +1,72 @@
+INFO: ================================================================================
+INFO: V22 + LEVERAGE TESTING
+INFO: ================================================================================
+INFO: 
+INFO: Baseline: V22-Sqrt Kelly sizing = 10.2% annual
+INFO: 
+INFO: Testing 2 leverage approaches:
+INFO:   #1: Futures (70% stocks + 30% MES) - NO interest fees
+INFO:   #2: Adaptive Margin (score-based, 1.3x max) - 6.5% interest
+INFO: 
+INFO: Goal: Reach 12-14% annual return
+INFO: 
+INFO: ================================================================================
+INFO: APPROACH #1: FUTURES LEVERAGE
+INFO: ================================================================================
+INFO: 
+INFO: Loading 473 stocks...
+INFO: Loaded 473 stocks
+INFO: Calculating indicators...
+INFO: Loaded VIX data: 5124 days
+INFO: Indicators calculated
+INFO: Scoring stocks...
+INFO: Scored 473 stocks
+INFO: Stock allocation: 70%, Futures: 30%
+INFO:   Annual Return: 8.2%
+INFO:   Max Drawdown: -26.6%
+INFO:   Sharpe: 0.53
+INFO:   Annual Cost: $201/year
+INFO: 
+INFO: ================================================================================
+INFO: APPROACH #2: ADAPTIVE MARGIN LEVERAGE
+INFO: ================================================================================
+INFO: 
+INFO: Loading 473 stocks...
+INFO: Loaded 473 stocks
+INFO: Calculating indicators...
+INFO: Loaded VIX data: 5124 days
+INFO: Indicators calculated
+INFO: Scoring stocks...
+INFO: Scored 473 stocks
+INFO: Score threshold: 90, Max leverage: 1.3x, Margin rate: 6.5%
+INFO:   Annual Return: 8.2%
+INFO:   Max Drawdown: -19.4%
+INFO:   Sharpe: 0.73
+INFO:   Annual Interest: $9,620/year
+INFO:   Avg Leverage: 1.23x
+INFO:   Leveraged: 90.1% of time
+INFO: 
+INFO: 
+INFO: ================================================================================
+INFO: FINAL COMPARISON
+INFO: ================================================================================
+INFO: 
+INFO: Strategy                    Annual   Drawdown   Sharpe   Cost/Year Status
+INFO: --------------------------------------------------------------------------------
+INFO: V13 (Baseline)                9.8%     -19.1%     1.07          $0
+INFO: V22-Sqrt (Kelly)             10.2%     -15.2%     1.11          $0 ✅
+INFO: Futures Leverage              8.2%     -26.6%     0.53 $       201 
+INFO: Adaptive Margin               8.2%     -19.4%     0.73 $     9,620 
+INFO: 
+INFO: ================================================================================
+INFO: WINNER
+INFO: ================================================================================
+INFO: 
+INFO: Best approach: Futures Leverage
+INFO: Annual return: 8.2%
+INFO: Improvement over V13: +-1.6%
+INFO: Improvement over V22: +-2.0%
+INFO: 
+INFO: Close! Achieved 8.2% (target was 12%+)
+INFO: 
+INFO: ================================================================================
