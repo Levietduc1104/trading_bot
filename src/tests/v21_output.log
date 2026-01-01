@@ -1,0 +1,177 @@
+INFO: ================================================================================
+INFO: V21: TACTICAL PORTFOLIO SIZE (ADAPTIVE CONCENTRATION)
+INFO: ================================================================================
+INFO: 
+INFO: Strategy:
+INFO:   Base: V13 (Momentum + Drawdown Control + VIX Regime)
+INFO:   NEW: Vary portfolio size (3-7 stocks) based on VIX
+INFO: 
+INFO: Rules:
+INFO:   VIX < 15:  3 stocks (maximum concentration in calm markets)
+INFO:   VIX 15-25: 5 stocks (balanced - current optimal)
+INFO:   VIX > 25:  7 stocks (maximum diversification in stress)
+INFO: 
+INFO: Goal: Beat V13's 9.8% annual return
+INFO: 
+INFO: ================================================================================
+INFO: Testing: Original (15/25)
+INFO:   < 15 VIX → 3 stocks
+INFO:   15-25 VIX → 5 stocks
+INFO:   > 25 VIX → 7 stocks
+INFO: 
+INFO: Loading 473 stocks...
+INFO: Loaded 473 stocks
+INFO: Calculating indicators...
+INFO: Loaded VIX data: 5124 days
+INFO: Indicators calculated
+INFO: Scoring stocks...
+INFO: Scored 473 stocks
+INFO: VIX thresholds: < 15 → 3 stocks, 15-25 → 5 stocks, > 25 → 7 stocks
+INFO:   Annual: 8.6%, DD: -21.3%, Sharpe: 0.94
+INFO:   Portfolio size distribution:
+INFO:     7 stocks: 100.0% of time
+INFO: 
+INFO: ================================================================================
+INFO: Testing: Aggressive (12/20)
+INFO:   < 12 VIX → 3 stocks
+INFO:   12-20 VIX → 5 stocks
+INFO:   > 20 VIX → 7 stocks
+INFO: 
+INFO: Loading 473 stocks...
+INFO: Loaded 473 stocks
+INFO: Calculating indicators...
+INFO: Loaded VIX data: 5124 days
+INFO: Indicators calculated
+INFO: Scoring stocks...
+INFO: Scored 473 stocks
+INFO: VIX thresholds: < 12 → 3 stocks, 12-20 → 5 stocks, > 20 → 7 stocks
+INFO:   Annual: 8.6%, DD: -21.3%, Sharpe: 0.94
+INFO:   Portfolio size distribution:
+INFO:     7 stocks: 100.0% of time
+INFO: 
+INFO: ================================================================================
+INFO: Testing: Conservative (18/30)
+INFO:   < 18 VIX → 3 stocks
+INFO:   18-30 VIX → 5 stocks
+INFO:   > 30 VIX → 7 stocks
+INFO: 
+INFO: Loading 473 stocks...
+INFO: Loaded 473 stocks
+INFO: Calculating indicators...
+INFO: Loaded VIX data: 5124 days
+INFO: Indicators calculated
+INFO: Scoring stocks...
+INFO: Scored 473 stocks
+INFO: VIX thresholds: < 18 → 3 stocks, 18-30 → 5 stocks, > 30 → 7 stocks
+INFO:   Annual: 8.2%, DD: -21.3%, Sharpe: 0.90
+INFO:   Portfolio size distribution:
+INFO:     5 stocks: 0.9% of time
+INFO:     7 stocks: 99.1% of time
+INFO: 
+INFO: ================================================================================
+INFO: Testing: Calm emphasis (15/30)
+INFO:   < 15 VIX → 3 stocks
+INFO:   15-30 VIX → 5 stocks
+INFO:   > 30 VIX → 7 stocks
+INFO: 
+INFO: Loading 473 stocks...
+INFO: Loaded 473 stocks
+INFO: Calculating indicators...
+INFO: Loaded VIX data: 5124 days
+INFO: Indicators calculated
+INFO: Scoring stocks...
+INFO: Scored 473 stocks
+INFO: VIX thresholds: < 15 → 3 stocks, 15-30 → 5 stocks, > 30 → 7 stocks
+INFO:   Annual: 8.2%, DD: -21.3%, Sharpe: 0.90
+INFO:   Portfolio size distribution:
+INFO:     5 stocks: 0.9% of time
+INFO:     7 stocks: 99.1% of time
+INFO: 
+INFO: ================================================================================
+INFO: Testing: Stress emphasis (12/25)
+INFO:   < 12 VIX → 3 stocks
+INFO:   12-25 VIX → 5 stocks
+INFO:   > 25 VIX → 7 stocks
+INFO: 
+INFO: Loading 473 stocks...
+INFO: Loaded 473 stocks
+INFO: Calculating indicators...
+INFO: Loaded VIX data: 5124 days
+INFO: Indicators calculated
+INFO: Scoring stocks...
+INFO: Scored 473 stocks
+INFO: VIX thresholds: < 12 → 3 stocks, 12-25 → 5 stocks, > 25 → 7 stocks
+INFO:   Annual: 8.6%, DD: -21.3%, Sharpe: 0.94
+INFO:   Portfolio size distribution:
+INFO:     7 stocks: 100.0% of time
+INFO: 
+INFO: 
+INFO: ================================================================================
+INFO: RESULTS SUMMARY - V21 TACTICAL PORTFOLIO SIZE
+INFO: ================================================================================
+INFO: 
+INFO: Configuration               Annual   Drawdown   Sharpe   Win Rate Status
+INFO: --------------------------------------------------------------------------------
+INFO: Original (15/25)              8.6%     -21.3%     0.94 14/20  
+INFO: Aggressive (12/20)            8.6%     -21.3%     0.94 14/20  
+INFO: Conservative (18/30)          8.2%     -21.3%     0.90 14/20  
+INFO: Calm emphasis (15/30)         8.2%     -21.3%     0.90 14/20  
+INFO: Stress emphasis (12/25)       8.6%     -21.3%     0.94 14/20  
+INFO: 
+INFO: ================================================================================
+INFO: BEST CONFIGURATION
+INFO: ================================================================================
+INFO: 
+INFO: Thresholds: Original (15/25)
+INFO:   VIX < 15: 3 stocks
+INFO:   VIX 15-25: 5 stocks
+INFO:   VIX > 25: 7 stocks
+INFO: 
+INFO: Annual Return: 8.6%
+INFO: Max Drawdown: -21.3%
+INFO: Sharpe Ratio: 0.94
+INFO: Realized Volatility: 8.9%
+INFO: Win Rate: 14/20 (70%)
+INFO: Final Value: $494,546
+INFO: 
+INFO: Portfolio Size Distribution:
+INFO:   7 stocks: 100.0% of time
+INFO: 
+INFO: ================================================================================
+INFO: COMPARISON: V13 vs V21
+INFO: ================================================================================
+INFO: 
+INFO: V13 (Fixed 5 stocks):
+INFO:   Annual: 9.8%, DD: -19.1%, Sharpe: 1.07
+INFO: 
+INFO: V21 (Original (15/25)):
+INFO:   Annual: 8.6%, DD: -21.3%, Sharpe: 0.94
+INFO: 
+INFO: V13 is still better by 1.2%
+INFO: Recommendation: Stick with V13 (fixed 5 stocks)
+INFO: 
+INFO: ================================================================================
+INFO: YEARLY RETURNS - BEST (Original (15/25))
+INFO: ================================================================================
+INFO:   2005:    0.9% +
+INFO:   2006:   -0.8% 
+INFO:   2007:   21.4% +
+INFO:   2008:  -15.6% 
+INFO:   2009:   -4.7% 
+INFO:   2010:   10.3% +
+INFO:   2011:   20.4% +
+INFO:   2012:   26.2% +
+INFO:   2013:   18.2% +
+INFO:   2014:   23.6% +
+INFO:   2015:   -1.7% 
+INFO:   2016:   15.6% +
+INFO:   2017:   19.4% +
+INFO:   2018:   -4.8% 
+INFO:   2019:    8.4% +
+INFO:   2020:   -9.4% 
+INFO:   2021:   19.8% +
+INFO:   2022:   12.3% +
+INFO:   2023:   14.5% +
+INFO:   2024:    8.0% +
+INFO: 
+INFO: ================================================================================

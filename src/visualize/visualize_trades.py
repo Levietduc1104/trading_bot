@@ -20,35 +20,185 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
+def calculate_kelly_weights_sqrt(scored_stocks):
+    """Calculate Kelly weights (Square Root method) - V22"""
+    tickers = [t for t, s in scored_stocks]
+    scores = [s for t, s in scored_stocks]
+
+    sqrt_scores = [np.sqrt(max(0, score)) for score in scores]
+    total_sqrt = sum(sqrt_scores)
+
+    if total_sqrt > 0:
+        weights = {
+            ticker: np.sqrt(max(0, score)) / total_sqrt
+            for ticker, score in scored_stocks
+        }
+    else:
+        weights = {ticker: 1.0 / len(tickers) for ticker in tickers}
+
+    return weights
+
+
+def run_v22_backtest(bot):
+    """
+    V22 backtest with Kelly position sizing
+    (Same implementation as execution.py)
+    """
+    logger.info("Running V22-Sqrt backtest...")
+
+    first_ticker = list(bot.stocks_data.keys())[0]
+    dates = bot.stocks_data[first_ticker].index
+
+    portfolio_values = []
+    holdings = {}
+    cash = bot.initial_capital
+    last_rebalance_date = None
+
+    for date in dates[100:]:
+        # Monthly rebalancing (day 7-10)
+        is_rebalance_day = (
+            last_rebalance_date is None or
+            (
+                (date.year, date.month) != (last_rebalance_date.year, last_rebalance_date.month) and
+                7 <= date.day <= 10
+            )
+        )
+
+        if is_rebalance_day:
+            # Liquidate holdings
+            for ticker in list(holdings.keys()):
+                df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                if len(df_at_date) > 0:
+                    current_price = df_at_date.iloc[-1]['close']
+                    cash += holdings[ticker] * current_price
+            holdings = {}
+            last_rebalance_date = date
+
+            # Get current VIX
+            vix_at_date = bot.vix_data[bot.vix_data.index <= date] if bot.vix_data is not None else None
+            if vix_at_date is not None and len(vix_at_date) > 0:
+                vix = vix_at_date.iloc[-1]['close']
+            else:
+                vix = 20
+
+            # Score stocks
+            current_scores = {}
+            for ticker, df in bot.stocks_data.items():
+                df_at_date = df[df.index <= date]
+                if len(df_at_date) >= 100:
+                    try:
+                        current_scores[ticker] = bot.score_stock(ticker, df_at_date)
+                    except:
+                        pass
+
+            # Get top 5 stocks
+            ranked = sorted(current_scores.items(), key=lambda x: x[1], reverse=True)
+            top_stocks = [(t, s) for t, s in ranked if s > 0][:5]
+
+            if not top_stocks:
+                portfolio_values.append({'date': date, 'value': cash})
+                continue
+
+            # VIX-based cash reserve
+            if vix < 30:
+                cash_reserve = 0.05 + (vix - 10) * 0.005
+            else:
+                cash_reserve = 0.15 + (vix - 30) * 0.0125
+            cash_reserve = np.clip(cash_reserve, 0.05, 0.70)
+
+            invest_amount = cash * (1 - cash_reserve)
+
+            # Kelly position sizing
+            kelly_weights = calculate_kelly_weights_sqrt(top_stocks)
+
+            allocations = {
+                ticker: invest_amount * weight
+                for ticker, weight in kelly_weights.items()
+            }
+
+            # Drawdown control
+            portfolio_df = pd.DataFrame(portfolio_values).set_index('date') if portfolio_values else None
+            if portfolio_df is not None and len(portfolio_df) > 1:
+                drawdown_multiplier = bot.calculate_drawdown_multiplier(portfolio_df)
+                allocations = {
+                    ticker: amount * drawdown_multiplier
+                    for ticker, amount in allocations.items()
+                }
+
+            # Buy stocks
+            for ticker, _ in top_stocks:
+                df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                if len(df_at_date) > 0:
+                    current_price = df_at_date.iloc[-1]['close']
+                    allocation_amount = allocations.get(ticker, 0)
+                    shares = allocation_amount / current_price
+                    holdings[ticker] = shares
+                    fee = allocation_amount * 0.001
+                    cash -= (allocation_amount + fee)
+
+        # Calculate daily portfolio value
+        stocks_value = 0
+        for ticker, shares in holdings.items():
+            df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+            if len(df_at_date) > 0:
+                current_price = df_at_date.iloc[-1]['close']
+                stocks_value += shares * current_price
+
+        total_value = cash + stocks_value
+        portfolio_values.append({'date': date, 'value': total_value})
+
+    portfolio_df = pd.DataFrame(portfolio_values).set_index('date')
+    return portfolio_df
+
+
 def create_trade_visualizations():
     """Create comprehensive multi-tab trading visualizations"""
-    
+
     logger.info("="*80)
     logger.info("CREATING MULTI-TAB TRADING DASHBOARD")
     logger.info("="*80)
-    
-    # Initialize bot
-    # Get absolute path to data directory
+
+    # Read data from database (latest run)
+    import sqlite3
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(script_dir, '..', '..', 'output', 'data', 'trading_results.db')
+
+    conn = sqlite3.connect(db_path)
+
+    # Get latest run
+    latest_run = pd.read_sql_query("""
+        SELECT * FROM backtest_runs
+        ORDER BY run_id DESC LIMIT 1
+    """, conn)
+
+    run_id = latest_run['run_id'].iloc[0]
+    initial_capital = latest_run['initial_capital'].iloc[0]
+
+    logger.info(f"\nLoading data from database:")
+    logger.info(f"  Run ID: {run_id}")
+    logger.info(f"  Strategy: {latest_run['strategy_type'].iloc[0]}")
+    logger.info(f"  Annual Return: {latest_run['annual_return'].iloc[0]:.1f}%")
+
+    # Load portfolio values
+    portfolio_df = pd.read_sql_query(f"""
+        SELECT date, portfolio_value as value
+        FROM portfolio_values
+        WHERE run_id = {run_id}
+        ORDER BY date
+    """, conn, parse_dates=['date'], index_col='date')
+
+    conn.close()
+
+    logger.info(f"  Data points: {len(portfolio_df)}")
+    logger.info(f"  Period: {portfolio_df.index[0].date()} to {portfolio_df.index[-1].date()}")
+
+    # For Tab 1 (trading analysis), we still need to run a minimal backtest to get trade logs
+    # But we use the portfolio_df from database for Tab 2 (performance charts)
     data_dir = os.path.join(script_dir, '..', '..', 'sp500_data', 'daily')
-    bot = PortfolioRotationBot(data_dir=data_dir)
+    bot = PortfolioRotationBot(data_dir=data_dir, initial_capital=initial_capital)
     bot.prepare_data()
     bot.score_all_stocks()
-    
-    # Run backtest with V11 ADAPTIVE HYBRID
-    logger.info("\nRunning backtest with V11 ADAPTIVE HYBRID WEIGHTING...")
-    logger.info("Strategy: Adaptive position weighting based on VIX")
-    logger.info("  - VIX < 30: Equal weighting (calm markets)")
-    logger.info("  - VIX >= 30: Inverse volatility weighting (stressed markets)")
-    logger.info("Trading fee: 0.1% per trade")
-    portfolio_df = bot.backtest_with_bear_protection(
-        top_n=10,
-        rebalance_freq='M',
-        use_vix_regime=True,  # VIX regime detection
-        use_adaptive_weighting=True,  # V11: Adaptive hybrid weighting
-        trading_fee_pct=0.001  # 0.1% fee per trade
-    )
-    trades_log = track_trades_with_adaptive_regime(bot, top_n=10)
+    trades_log = track_trades_with_adaptive_regime(bot, top_n=5)
     
     # Create output file
     output_path = os.path.join(script_dir, "trading_analysis.html")
