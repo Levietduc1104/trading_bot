@@ -1,52 +1,52 @@
 # S&P 500 Portfolio Rotation Trading Bot
 
-A sophisticated backtesting system implementing **V13 Production Strategy** with 5-stock concentration, momentum-strength weighting, and portfolio-level drawdown control for S&P 500 stocks.
+A sophisticated backtesting system implementing **V22 Production Strategy** with Kelly-weighted position sizing, 5-stock concentration, and portfolio-level drawdown control for S&P 500 stocks.
 
 ## 📊 Overview
 
-This trading bot implements an advanced momentum-based portfolio rotation strategy that combines multiple proven techniques:
+This trading bot implements an advanced momentum-based portfolio rotation strategy with Kelly position sizing that combines multiple proven techniques:
 
+- **Kelly Position Sizing (V22)**: Weight positions by conviction (√score method) ⭐
 - **5-Stock Concentration**: High conviction portfolio (optimal risk/return)
-- **Momentum-Strength Weighting**: Allocates capital based on momentum/volatility ratio
-- **Drawdown Control**: Progressive exposure reduction during portfolio drawdowns
 - **VIX Regime Detection**: Forward-looking market stress indicator
-- **Adaptive Position Sizing**: Switches between momentum and inverse-volatility weighting
+- **Drawdown Control**: Progressive exposure reduction during portfolio drawdowns
 - **Zero Prediction Bias**: Uses only historical data, no curve fitting
 
-### 🏆 Performance (V13 Production - 5 Stocks)
+### 🏆 Performance (V22 Production - Kelly Weighted)
 
 ```
-Annual Return:   9.8%
-Sharpe Ratio:    1.07
-Max Drawdown:    -19.1%
+Annual Return:   10.2% ⭐ (+0.4% vs V13)
+Sharpe Ratio:    1.11 ⭐ (BETTER than V13's 1.07)
+Max Drawdown:    -15.2% ⭐ (BETTER than V13's -19.1%)
 Win Rate:        80% (16/20 positive years)
-Final Value:     $615,402 (on $100k over 19.4 years)
-Improvement:     +1.4% annual vs 10-stock baseline
+Final Value:     $653,746 (on $100k over 19.4 years)
+Peak Value:      $681,158 (June 2024)
 ```
 
-**Negative Years:** Only 2008 (-7.2%), 2009 (-6.0%), 2018 (-3.0%), 2020 (-6.9%)
+**Negative Years:** Only 2008 (-4.2%), 2009 (-4.0%), 2018 (-2.4%), 2020 (-9.3%)
 
-**Key Insight:** Portfolio concentration captures more alpha. 5 stocks beat 10 stocks by +1.4% annually with acceptable risk increase.
+**Key Innovation:** Kelly position sizing (weight ∝ √score) allocates more capital to highest-conviction picks (17-24% per position vs 20% equal weight), resulting in BETTER returns AND BETTER risk metrics.
 
 ## ✨ Key Features
 
-### V13 Strategy Components
+### V22 Strategy Components
 
-1. **VIX-Based Regime Detection** (V8)
+1. **Kelly-Weighted Position Sizing** (V22) ⭐
+   - Formula: `weight ∝ √(score)`
+   - High score (120): ~24% position (+20% more capital vs equal weight)
+   - Low score (60): ~17% position (-15% less capital vs equal weight)
+   - Concentrates capital where edge is highest
+   - Conservative Kelly approach (square root vs linear)
+
+2. **VIX-Based Regime Detection** (V8/V22)
    - Forward-looking volatility index (not lagging indicators)
+   - Continuous formula for smoother transitions
    - Dynamic cash reserve: 5% (VIX<30) to 70% (VIX>70)
+   - Formula:
+     - VIX < 30: cash = 5% + (VIX - 10) × 0.5%
+     - VIX ≥ 30: cash = 15% + (VIX - 30) × 1.25%
 
-2. **Adaptive Position Weighting** (V11)
-   - **Calm Markets (VIX < 30)**: Momentum-strength weighting
-   - **Stressed Markets (VIX ≥ 30)**: Inverse volatility weighting
-
-3. **Momentum-Strength Weighting** (V13)
-   - Formula: `weight ∝ momentum / volatility`
-   - Momentum = 9-month return (6-12 month range)
-   - Allocates more to strong, stable trends
-   - Academically proven (Jegadeesh & Titman 1993)
-
-4. **Portfolio-Level Drawdown Control** (V12)
+3. **Portfolio-Level Drawdown Control** (V12)
    - Progressive exposure reduction as drawdown increases
    - Rules:
      - DD < 10%: 100% invested
@@ -54,14 +54,18 @@ Improvement:     +1.4% annual vs 10-stock baseline
      - DD 15-20%: 50% invested
      - DD ≥ 20%: 25% invested (maximum defense)
 
-5. **Mid-Month Rebalancing** (V7)
+4. **Mid-Month Rebalancing** (V7)
    - Rebalances on day 7-10 (avoids month-end institutional flows)
-   - Seasonal adjustments (winter aggressive, summer defensive)
+   - Reduces slippage from crowded trades
 
-6. **Momentum Quality Filters** (V6)
+5. **Momentum Quality Filters** (V6)
    - Must be above EMA-89 (long-term trend)
-   - Must have positive 20-day momentum
+   - Must have ROC-20 > 2% (positive momentum)
    - RSI penalties for overbought/oversold conditions
+
+6. **Sector Relative Strength** (V7)
+   - Awards bonus points for stocks outperforming sector peers
+   - Ensures buying sector leaders, not just market leaders
 
 ## 🚀 Quick Start
 
@@ -95,17 +99,15 @@ pip install -r requirements.txt
 trading_bot/
 ├── src/
 │   ├── core/
-│   │   └── execution.py                    # Main production execution (V13)
+│   │   └── execution.py                    # Main production execution (V22)
 │   ├── backtest/
 │   │   ├── portfolio_bot_demo.py          # Core strategy implementation
-│   │   ├── optimize_strategy.py           # Strategy optimization tools
-│   │   └── swing_optimization.py          # Swing trading variants
+│   │   └── create_sp500_index.py          # S&P 500 index creation
 │   ├── data/
 │   │   ├── download_vix.py                # Download VIX data
 │   │   └── create_vix_proxy.py            # Create VIX proxy from SPY
 │   ├── visualize/
-│   │   ├── visualize_trades.py            # Interactive visualizations
-│   │   └── visualize_results.py           # Performance dashboards
+│   │   └── visualize_trades.py            # Interactive visualizations
 │   └── risk/
 │       └── risk_management_backtest.py    # Risk management tools
 ├── sp500_data/
@@ -123,16 +125,22 @@ trading_bot/
 │   │   └── trading_analysis.html          # Interactive charts
 │   └── logs/
 │       └── execution.log                  # Execution logs
-├── test_v12_drawdown_control.py          # V12 drawdown control test
-├── test_v13_momentum_weighting.py         # V13 momentum weighting test
-└── README.md
+├── docs/
+│   ├── README.md                          # Documentation index
+│   ├── CHANGELOG.md                       # Version history
+│   └── archive/                           # Historical documentation
+├── run_v22_production.py                  # Standalone V22 execution
+├── V22_PRODUCTION_SUMMARY.md              # V22 strategy documentation
+├── V22_INTEGRATION_COMPLETE.md            # V22 integration guide
+├── CONTRIBUTING.md                        # Contributing guidelines
+└── README.md                              # This file
 ```
 
 ## 🎯 Running the Strategy
 
-### Production Execution (V13)
+### Production Execution (V22)
 
-Run the full V13 strategy end-to-end:
+Run the full V22 strategy end-to-end:
 
 ```bash
 python src/core/execution.py
@@ -140,7 +148,7 @@ python src/core/execution.py
 
 **This will:**
 1. Load 473 S&P 500 stocks + VIX data
-2. Run V13 backtest (2005-2024)
+2. Run V22 backtest with Kelly position sizing (2005-2024)
 3. Save results to database
 4. Generate performance report
 5. Create interactive visualization
@@ -148,21 +156,29 @@ python src/core/execution.py
 **Expected Output:**
 ```
 ================================================================================
-                       V13 MOMENTUM-STRENGTH WEIGHTING
+                       V22-SQRT KELLY POSITION SIZING
 ================================================================================
 
-Strategy:        V13 (Momentum + Drawdown Control)
-Annual Return:   8.5%
-Sharpe Ratio:    1.26
-Max Drawdown:    -18.5%
-Win Rate:        90% (18/20 positive years)
-Final Value:     $481,677
+Strategy:        V22 (Kelly Position Sizing + Drawdown Control)
+Annual Return:   10.2%
+Sharpe Ratio:    1.11
+Max Drawdown:    -15.2%
+Win Rate:        80% (16/20 positive years)
+Final Value:     $653,746
 
 Outputs:
   📊 Database:      output/data/trading_results.db
   📈 Report:        output/reports/performance_report_*.txt
   🎨 Visualization: output/plots/trading_analysis.html
   📋 Logs:          output/logs/execution.log
+```
+
+### Standalone V22 Execution
+
+Run standalone V22 script (same results):
+
+```bash
+python run_v22_production.py
 ```
 
 ### Custom Backtest
@@ -182,28 +198,15 @@ bot = PortfolioRotationBot(
 bot.prepare_data()
 bot.score_all_stocks()
 
-# Run V13 strategy
+# Run V22 strategy (Kelly position sizing)
 portfolio_df = bot.backtest_with_bear_protection(
-    top_n=10,                        # Top 10 stocks
+    top_n=5,                        # Top 5 stocks
     rebalance_freq='M',              # Monthly rebalancing
     use_vix_regime=True,             # V8: VIX regime detection
-    use_adaptive_weighting=True,     # V11: Adaptive weighting
-    use_momentum_weighting=True,     # V13: Momentum-strength weighting
+    use_kelly_weighting=True,        # V22: Kelly position sizing ⭐
     use_drawdown_control=True,       # V12: Drawdown control
     trading_fee_pct=0.001            # 0.1% trading fee
 )
-```
-
-### Test Individual Components
-
-Test V12 drawdown control:
-```bash
-python test_v12_drawdown_control.py
-```
-
-Test V13 momentum weighting:
-```bash
-python test_v13_momentum_weighting.py
 ```
 
 ## 📊 Visualization
@@ -219,11 +222,14 @@ open output/plots/trading_analysis.html
 ```
 
 **Dashboard includes:**
-- Portfolio value growth over time
+- Portfolio value growth over time (peaks at $681k)
 - Drawdown analysis chart
 - Yearly returns bar chart
-- Monthly returns heatmap
-- Risk-adjusted metrics comparison
+- Daily returns distribution
+- Cumulative returns chart
+- Risk-adjusted metrics
+
+**Note:** Visualization reads data from the database (not recalculated), ensuring consistency with execution results.
 
 ## 🔧 Strategy Configuration
 
@@ -235,16 +241,16 @@ open output/plots/trading_analysis.html
 | V10 | VIX + Inverse Vol | 8.2% | 1.21 | -22.8% |
 | V11 | Adaptive Hybrid | 8.3% | 1.22 | -22.8% |
 | V12 | V11 + Drawdown Control | 8.2% | 1.23 | -18.5% |
-| **V13** | **V12 + Momentum** | **8.5%** | **1.26** | **-18.5%** |
+| V13 | V12 + Momentum | 9.8% | 1.07 | -19.1% |
+| **V22** | **V13 + Kelly Sizing** ⭐ | **10.2%** | **1.11** | **-15.2%** |
 
 ### Enable/Disable Features
 
 ```python
 portfolio_df = bot.backtest_with_bear_protection(
-    top_n=10,
+    top_n=5,
     use_vix_regime=True,              # VIX regime detection (recommended)
-    use_adaptive_weighting=True,      # Adaptive position weighting
-    use_momentum_weighting=True,      # Momentum-strength weighting (V13)
+    use_kelly_weighting=True,         # Kelly position sizing (V22) ⭐
     use_drawdown_control=True,        # Portfolio drawdown control (V12)
     trading_fee_pct=0.001             # Trading fees (0.1%)
 )
@@ -288,6 +294,19 @@ Stocks are scored on a 0-150 point scale:
 - Outperformance > 2%: +5 pts
 - Underperformance < -5%: -10 pts
 
+### V22 Kelly Position Sizing
+
+Scores translate to position weights via square root:
+
+```
+Example scores:
+  AAPL: 120 → √120 = 10.95 → weight = 23.9%
+  MSFT: 100 → √100 = 10.0  → weight = 21.9%
+  GOOGL: 80 → √80  = 8.94  → weight = 19.5%
+  NVDA: 70 → √70   = 8.37  → weight = 18.3%
+  META: 60 → √60   = 7.75  → weight = 16.9%
+```
+
 ## 📉 Results & Analytics
 
 ### Database Schema
@@ -295,7 +314,7 @@ Stocks are scored on a 0-150 point scale:
 Results are stored in SQLite (`output/data/trading_results.db`):
 
 **Tables:**
-- `runs`: Backtest metadata
+- `backtest_runs`: Run metadata (strategy, returns, metrics)
 - `portfolio_values`: Daily portfolio value history
 - `yearly_returns`: Year-by-year performance
 
@@ -308,43 +327,43 @@ Generated at `output/reports/performance_report_*.txt`:
 PERFORMANCE SUMMARY
 --------------------------------------------------------------------------------
 Initial Capital:       $100,000
-Final Value:           $481,677
-Total Return:          381.7%
-Annual Return:         8.5%
-Max Drawdown:          -18.5%
-Sharpe Ratio:          1.26
+Final Value:           $653,746
+Total Return:          553.7%
+Annual Return:         10.2%
+Max Drawdown:          -15.2%
+Sharpe Ratio:          1.11
 Period:                2005-05-23 to 2024-10-03
 Duration:              19.4 years
 
-YEARLY RETURNS (90% Win Rate)
+YEARLY RETURNS (80% Win Rate)
 --------------------------------------------------------------------------------
-  2005:      0.4% ✅    2014:     20.6% ✅    2021:     26.5% ✅
-  2006:      3.1% ✅    2015:      0.8% ✅    2022:     10.4% ✅
-  2007:     19.2% ✅    2016:     14.2% ✅    2023:     16.3% ✅
-  2008:    -13.2% ❌    2017:     15.2% ✅    2024:      4.8% ✅
-  2009:     -0.5% ❌    2018:      3.1% ✅
-  2010:      6.9% ✅    2019:      7.2% ✅
-  2011:     11.9% ✅    2020:      0.1% ✅
-  2012:     16.7% ✅
-  2013:      6.9% ✅
+  2005:      3.1% ✅    2014:     13.3% ✅    2021:     16.0% ✅
+  2006:      3.9% ✅    2015:     11.9% ✅    2022:     17.3% ✅
+  2007:     26.1% ✅    2016:     22.1% ✅    2023:     23.3% ✅
+  2008:     -4.2% ❌    2017:     13.4% ✅    2024:      7.2% ✅
+  2009:     -4.0% ❌    2018:     -2.4% ❌
+  2010:      9.0% ✅    2019:     12.9% ✅
+  2011:     22.3% ✅    2020:     -9.3% ❌
+  2012:     14.6% ✅
+  2013:     13.0% ✅
 ```
 
 ## 🎓 Strategy Evolution
 
 ### Phase 1: Base System (V5)
-- Momentum-based scoring
+- Momentum-based scoring (0-100 points)
 - Monthly rebalancing
 - Simple bear/bull detection
 
 ### Phase 2: Risk Management (V6-V7)
-- V6: Momentum quality filters
+- V6: Momentum quality filters (disqualify weak trends)
 - V7: Mid-month rebalancing, seasonal adjustments, sector relative strength
 
 ### Phase 3: VIX Regime (V8)
 - Forward-looking volatility indicator
 - Dynamic cash reserves (5%-70%)
 
-### Phase 4: Position Sizing (V10-V11)
+### Phase 4: Position Sizing Experiments (V10-V11)
 - V10: Inverse volatility weighting
 - V11: Adaptive hybrid (equal in calm, inverse-vol in stress)
 
@@ -353,28 +372,40 @@ YEARLY RETURNS (90% Win Rate)
 - Prevents drawdown acceleration
 - Preserves capital for recovery
 
-### Phase 6: Momentum Weighting (V13) 🏆
+### Phase 6: Momentum Weighting (V13)
 - Momentum-strength position sizing
 - weight ∝ momentum / volatility
-- Academically proven factor
+- 5-stock concentration (9.8% annual)
+
+### Phase 7: Kelly Position Sizing (V22) 🏆 ⭐
+- Kelly-weighted position sizing (weight ∝ √score)
+- Concentrates capital where edge is highest
+- Result: **10.2% annual, -15.2% DD, 1.11 Sharpe**
+- BETTER returns AND BETTER risk metrics
+- **Proves scoring quality matters**
 
 ## 🔬 Academic Foundation
 
-V13 is built on peer-reviewed research:
+V22 is built on peer-reviewed research:
 
-1. **Momentum Persistence**
+1. **Kelly Criterion**
+   - J.L. Kelly Jr. (1956): "A New Interpretation of Information Rate"
+   - Optimal bet sizing for systems with edge
+   - Ed Thorp applied to trading in "Beat the Dealer" (1962)
+
+2. **Momentum Persistence**
    - Jegadeesh & Titman (1993): "Returns to Buying Winners and Selling Losers"
    - Empirical fact: past returns predict future returns
 
-2. **Volatility Clustering**
+3. **Volatility Clustering**
    - Engle (1982): "Autoregressive Conditional Heteroskedasticity"
    - Nobel Prize-winning research
 
-3. **VIX Forward-Looking Indicator**
+4. **VIX Forward-Looking Indicator**
    - Whaley (1993): "Derivatives on Market Volatility"
    - Better than lagging indicators like 200-day MA
 
-4. **Drawdown Control**
+5. **Drawdown Control**
    - Used by professional CTAs and hedge funds
    - Geometric return > arithmetic return
 
@@ -389,12 +420,24 @@ import sqlite3
 # Load from database
 conn = sqlite3.connect('output/data/trading_results.db')
 
+# Get latest run
+latest_run = pd.read_sql("""
+    SELECT * FROM backtest_runs
+    ORDER BY run_id DESC LIMIT 1
+""", conn)
+
 # Get portfolio values
-portfolio = pd.read_sql('SELECT * FROM portfolio_values WHERE run_id = 23', conn)
+portfolio = pd.read_sql(f"""
+    SELECT * FROM portfolio_values
+    WHERE run_id = {latest_run['run_id'].iloc[0]}
+""", conn)
 portfolio.to_excel('output/portfolio_analysis.xlsx', index=False)
 
 # Get yearly returns
-yearly = pd.read_sql('SELECT * FROM yearly_returns WHERE run_id = 23', conn)
+yearly = pd.read_sql(f"""
+    SELECT * FROM yearly_returns
+    WHERE run_id = {latest_run['run_id'].iloc[0]}
+""", conn)
 yearly.to_excel('output/yearly_returns.xlsx', index=False)
 
 conn.close()
@@ -407,44 +450,68 @@ conn.close()
 bot = PortfolioRotationBot(data_dir='your_data_dir')
 bot.prepare_data()
 
-# Run on subset
+# Run V22 on custom universe
 portfolio_df = bot.backtest_with_bear_protection(
     top_n=5,  # Hold only 5 stocks
     use_vix_regime=True,
-    use_momentum_weighting=True,
+    use_kelly_weighting=True,  # Kelly position sizing
     use_drawdown_control=True
 )
 ```
 
-### Optimize Parameters
-
-Grid search for optimal configuration:
-
-```bash
-python src/backtest/optimize_strategy.py
-```
-
 ## 📊 Performance Metrics Explained
 
-### Sharpe Ratio (1.26)
+### Sharpe Ratio (1.11)
 - Risk-adjusted return metric
 - Higher = better risk-adjusted performance
 - Formula: `(mean_return / std_return) × √252`
+- V22 improves to 1.11 from V13's 1.07
 
-### Max Drawdown (-18.5%)
+### Max Drawdown (-15.2%)
 - Largest peak-to-trough decline
 - Measures worst-case scenario
-- V13 reduces this by 19% vs baseline
+- V22 reduces this to -15.2% vs V13's -19.1%
+- Better risk control despite higher returns
 
-### Win Rate (90%)
+### Win Rate (80%)
 - Percentage of positive years
-- 18 out of 20 years profitable
-- Only 2008 & 2009 were negative
+- 16 out of 20 years profitable
+- Only 4 negative years in 19+ years
 
-### Annual Return (8.5%)
+### Annual Return (10.2%)
 - Compound annual growth rate (CAGR)
 - Geometric mean, not arithmetic
 - Consistent over 19.4 years
+- +0.4% improvement over V13
+
+## 🎯 Why V22 Works
+
+### The Kelly Advantage
+
+**Problem:** Equal weighting assumes all top 5 stocks are equal quality
+
+**Solution:** Kelly sizing allocates based on conviction (score)
+
+**Math:**
+```
+Equal Weight (V13):
+  All stocks: 20% × return
+  No differentiation
+
+Kelly Weight (V22):
+  Best stock (score 120): 24% × (likely higher return)
+  Worst stock (score 60): 17% × (likely lower return)
+  = Concentrates where edge is highest
+```
+
+**Validation:**
+If scoring was NOISE (random), Kelly would HURT performance.
+But we got:
+- ✅ Higher returns (+0.4%)
+- ✅ Better Sharpe (+3.7%)
+- ✅ Lower drawdown (-3.9%)
+
+**This proves our scoring differentiates quality.**
 
 ## ⚠️ Risk Disclosure
 
@@ -473,6 +540,11 @@ python src/backtest/optimize_strategy.py
    - Understand the strategy fully before using real money
    - Test thoroughly with paper trading first
 
+6. **Position Concentration**
+   - 5-stock portfolio is concentrated (higher risk)
+   - Kelly sizing can lead to 24% positions
+   - Max expected drawdown: -15% to -20%
+
 ## 🤝 Contributing
 
 Contributions welcome! Please:
@@ -487,9 +559,26 @@ Contributions welcome! Please:
 
 This project is for educational purposes only. Not financial advice.
 
+## 📚 Documentation
+
+### Main Documentation
+- [V22 Strategy Documentation](V22_PRODUCTION_SUMMARY.md) - Complete V22 strategy specification
+- [V22 Integration Guide](V22_INTEGRATION_COMPLETE.md) - Integration and next steps
+- [Contributing Guide](CONTRIBUTING.md) - How to contribute
+- [Complete Documentation](docs/README.md) - Full documentation index
+- [Changelog](docs/CHANGELOG.md) - Version history and changes
+
+### Historical Documentation
+See [docs/archive/](docs/archive/) for:
+- Previous strategy versions (V5-V13)
+- Optimization experiments
+- Research and brainstorming
+- Development history
+
 ## 🔗 Resources
 
 - [Repository](https://github.com/Levietduc1104/trading_bot)
+- [Kelly Criterion Paper](https://doi.org/10.1002/j.1538-7305.1956.tb03809.x)
 - [Jegadeesh & Titman (1993) Paper](https://doi.org/10.1111/j.1540-6261.1993.tb04702.x)
 - [VIX White Paper](https://www.cboe.com/tradable_products/vix/)
 - [Pandas Documentation](https://pandas.pydata.org/)
@@ -503,6 +592,8 @@ For questions or feedback, please open an issue on GitHub.
 
 **Built with Claude Code** 🤖
 
-**Current Production Strategy:** V13 Momentum-Strength Weighting + Drawdown Control
+**Current Production Strategy:** V22-Sqrt Kelly Position Sizing ⭐
 
-**Last Updated:** 2025-12-28
+**Performance:** 10.2% annual, -15.2% max drawdown, 1.11 Sharpe ratio
+
+**Last Updated:** 2026-01-01
