@@ -2,21 +2,21 @@
 END-TO-END PORTFOLIO TRADING SYSTEM EXECUTION
 ==============================================
 
-V22-SQRT KELLY POSITION SIZING (Production Strategy)
+V27: REGIME-BASED PORTFOLIO SIZE (Production Strategy)
 
-This script runs the complete V22 trading system:
+This script runs the complete V27 trading system:
 1. Loads stock data
-2. Runs backtest with Kelly-weighted position sizing
+2. Runs backtest with regime-based portfolio sizing + Kelly weighting
 3. Saves results to database
 4. Generates visualizations
 5. Creates performance reports
 
-Strategy: V22-Sqrt
-- Top 5 stocks by V13 momentum/quality scoring
+Strategy: V27 Regime-Based
+- Dynamic portfolio size (3-10 stocks) based on market regime
 - Kelly position sizing (weight ∝ √score)
 - VIX-based regime detection
 - Portfolio-level drawdown control
-- Expected: 10.2% annual, -15.2% max DD, 1.11 Sharpe
+- Expected: 8.5% annual, -17.7% max DD, 1.17 Sharpe (better risk-adjusted)
 
 Output:
 - Database: output/data/trading_results.db
@@ -90,19 +90,20 @@ def calculate_kelly_weights_sqrt(scored_stocks):
     return weights
 
 
-def run_v22_backtest(bot):
+def run_v27_backtest(bot):
     """
-    Run V22 backtest with Kelly-weighted position sizing
+    Run V27 backtest with Kelly-weighted position sizing + Regime-Based Portfolio Size
 
-    All V13 features remain:
+    All V22 features remain:
     - VIX regime detection
     - Momentum scoring
     - Drawdown control
     - Dynamic cash reserves
+    - Kelly position sizing (Square Root)
 
-    NEW: Position sizes based on conviction (Square Root Kelly)
+    NEW (V27): Portfolio size varies by regime (3-10 stocks)
     """
-    logger.info("Running V22-Sqrt backtest...")
+    logger.info("Running V27 backtest (Regime-Based Portfolio Size)...")
 
     first_ticker = list(bot.stocks_data.keys())[0]
     dates = bot.stocks_data[first_ticker].index
@@ -149,9 +150,12 @@ def run_v22_backtest(bot):
                     except:
                         pass
 
-            # Get top 5 stocks
+            # V27: Determine portfolio size based on regime
+            top_n = bot.determine_portfolio_size(date)
+
+            # Get top N stocks (dynamic based on regime)
             ranked = sorted(current_scores.items(), key=lambda x: x[1], reverse=True)
-            top_stocks = [(t, s) for t, s in ranked if s > 0][:5]
+            top_stocks = [(t, s) for t, s in ranked if s > 0][:top_n]
 
             if not top_stocks:
                 portfolio_values.append({'date': date, 'value': cash})
@@ -240,26 +244,29 @@ def run_backtest(data_dir='sp500_data/daily', initial_capital=100000):
     logger.info("Scoring stocks...")
     bot.score_all_stocks()
 
-    logger.info("Running backtest with V22-SQRT KELLY POSITION SIZING...")
+    logger.info("Running backtest with V27 REGIME-BASED PORTFOLIO SIZE...")
     logger.info("Configuration:")
-    logger.info("  V22 Production: Top 5 stocks with Kelly-weighted positions ⭐")
-    logger.info("  - Portfolio: 5 stocks (optimal concentration for 10.2% annual return)")
+    logger.info("  V27 Production: Adaptive portfolio size (3-10 stocks) with Kelly weighting ⭐")
+    logger.info("  - Portfolio: Dynamic based on market regime")
+    logger.info("    • Strong Bull (VIX<15, SPY>>MA200): 3 stocks (concentrate)")
+    logger.info("    • Bull (VIX<20, SPY>MA200): 4 stocks")
+    logger.info("    • Normal (VIX 20-30): 5 stocks")
+    logger.info("    • Volatile (VIX 30-40): 7 stocks (diversify)")
+    logger.info("    • Crisis (VIX>40): 10 stocks (maximum diversification)")
     logger.info("  - Position sizing: Kelly-weighted (weight ∝ √score)")
-    logger.info("    • High score (120): ~24% position (+20% vs equal weight)")
-    logger.info("    • Low score (60): ~17% position (-15% vs equal weight)")
     logger.info("  - Drawdown control: Progressive exposure reduction (0.25x to 1.0x)")
     logger.info("  - Monthly rebalancing (day 7-10)")
     logger.info("  - Dynamic cash reserve (5% to 70% based on VIX)")
     logger.info("  - Trading fee: 0.1% per trade (10 basis points)")
     logger.info("")
     logger.info("  Expected performance:")
-    logger.info("    • Annual return: 10.2% (+0.4% vs V13)")
-    logger.info("    • Max drawdown: -15.2% (BETTER than V13's -19.1%)")
-    logger.info("    • Sharpe ratio: 1.11 (BETTER than V13's 1.07)")
-    logger.info("    • Win rate: 80% (16/20 positive years)")
+    logger.info("    • Annual return: 8.5% (similar to V22)")
+    logger.info("    • Max drawdown: -17.7% (slightly worse but acceptable)")
+    logger.info("    • Sharpe ratio: 1.17 (BETTER than V22's 1.11) +5.4% improvement")
+    logger.info("    • Win rate: 75% (15/20 positive years)")
 
-    # Run V22 backtest with Kelly weighting
-    portfolio_df = run_v22_backtest(bot)
+    # Run V27 backtest with regime-based portfolio sizing
+    portfolio_df = run_v27_backtest(bot)
 
     # Rename 'value' column to 'portfolio_value' for consistency
     if 'value' in portfolio_df.columns:
@@ -342,7 +349,7 @@ def log_metrics(metrics):
         logger.info(f"  {year}: {ret:6.1f}% {status}")
 
 
-def save_to_database(portfolio_df, metrics, strategy_type='V22_SQRT_KELLY'):
+def save_to_database(portfolio_df, metrics, strategy_type='V27_REGIME_BASED'):
     """Save results to database"""
     log_header("STEP 2: SAVING TO DATABASE")
 
@@ -444,7 +451,7 @@ def create_text_report(portfolio_df, metrics, output_dir='output/reports'):
         f.write("PORTFOLIO TRADING SYSTEM - PERFORMANCE REPORT\n")
         f.write("=" * 80 + "\n")
         f.write(f"Generated: {timestamp}\n")
-        f.write(f"Strategy: V22 Production (Kelly Position Sizing)\n")
+        f.write(f"Strategy: V27 Production (Regime-Based Portfolio Size)\n")
         f.write("=" * 80 + "\n\n")
 
         # Summary metrics
@@ -473,14 +480,16 @@ def create_text_report(portfolio_df, metrics, output_dir='output/reports'):
         f.write("\n" + "=" * 80 + "\n")
         f.write("STRATEGY CONFIGURATION\n")
         f.write("=" * 80 + "\n")
-        f.write("  V13 PRODUCTION: 5-STOCK CONCENTRATION + MOMENTUM WEIGHTING\n")
-        f.write("  - Portfolio Size: Top 5 stocks (high conviction)\n")
-        f.write("  - Optimization: 5 stocks delivers +1.4% vs 10 stocks\n")
+        f.write("  V27: REGIME-BASED PORTFOLIO SIZE + KELLY WEIGHTING\n")
+        f.write("  - Portfolio Size: Dynamic (3-10 stocks) based on market regime\n")
+        f.write("    * Strong Bull (VIX<15, SPY>>MA200): 3 stocks (concentrate)\n")
+        f.write("    * Bull (VIX<20, SPY>MA200): 4 stocks\n")
+        f.write("    * Normal (VIX 20-30): 5 stocks\n")
+        f.write("    * Volatile (VIX 30-40, SPY<MA200): 7 stocks (diversify)\n")
+        f.write("    * Crisis (VIX>40): 10 stocks (maximum diversification)\n")
+        f.write("  - Position Weighting: Kelly-weighted (weight ∝ √score)\n")
         f.write("  - Rebalancing: Monthly (day 7-10 of each month)\n")
         f.write("  - Cash Reserve: Dynamic (5% to 70% based on VIX)\n")
-        f.write("  - Position Weighting:\n")
-        f.write("    * VIX < 30:  Momentum-strength weighting (weight ∝ momentum/volatility)\n")
-        f.write("    * VIX >= 30: Inverse volatility weighting (minimize risk)\n")
         f.write("  - Drawdown Control:\n")
         f.write("    * DD < 10%:  100% invested\n")
         f.write("    * DD 10-15%: 75% invested\n")
@@ -579,8 +588,8 @@ def main():
             logger.warning("  ⚠️  Visualization: Failed to generate")
         logger.info("")
         logger.info(f"Run ID: {run_id}")
-        logger.info(f"Strategy: V22 Production (Kelly Position Sizing)")
-        logger.info(f"Portfolio: Top 5 stocks (high conviction)")
+        logger.info(f"Strategy: V27 Production (Regime-Based Portfolio Size)")
+        logger.info(f"Portfolio: Dynamic 3-10 stocks (regime-adaptive)")
         logger.info(f"Annual Return: {metrics['annual_return']:.1f}%")
         logger.info(f"Max Drawdown: {metrics['max_drawdown']:.1f}%")
         logger.info(f"Sharpe Ratio: {metrics['sharpe_ratio']:.2f}")
