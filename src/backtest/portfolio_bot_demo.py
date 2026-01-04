@@ -690,6 +690,70 @@ class PortfolioRotationBot:
 
         return cash_reserve
 
+    def determine_portfolio_size(self, date):
+        """
+        V27: REGIME-BASED PORTFOLIO SIZE
+
+        Varies portfolio size (3-10 stocks) based on market regime.
+
+        Portfolio Size Rules:
+        - STRONG BULL (VIX<15, SPY>>MA200):   3 stocks (concentrate when confident)
+        - BULL (VIX<20, SPY>MA200):           4 stocks
+        - NORMAL (VIX 20-30):                 5 stocks (V22 baseline)
+        - VOLATILE (VIX 30-40, SPY<MA200):    7 stocks (diversify when uncertain)
+        - CRISIS (VIX>40):                    10 stocks (maximum diversification)
+
+        Economic Intuition:
+        - Bull markets: Higher conviction → more concentration → higher returns
+        - Bear markets: Higher uncertainty → more diversification → risk control
+
+        This aligns with Kelly Criterion principle: position size should vary
+        with confidence/edge. In crisis, we lower individual position sizes by
+        spreading across more stocks.
+
+        Args:
+            date: Current date for regime detection
+
+        Returns:
+            int: Number of stocks to hold (3-10)
+        """
+        # Get VIX level
+        vix = 20.0  # Default to NORMAL regime
+        if self.vix_data is not None:
+            vix_at_date = self.vix_data[self.vix_data.index <= date]
+            if len(vix_at_date) > 0:
+                vix = vix_at_date.iloc[-1]['close']
+
+        # Get SPY vs MA200 (market trend indicator)
+        spy_vs_ma200_pct = 0.0  # Default to neutral
+        spy_data = self.stocks_data.get('SPY')
+        if spy_data is not None:
+            spy_at_date = spy_data[spy_data.index <= date]
+            if len(spy_at_date) >= 200:
+                spy_price = spy_at_date.iloc[-1]['close']
+                spy_ma200 = spy_at_date['close'].tail(200).mean()
+                spy_vs_ma200_pct = (spy_price / spy_ma200 - 1) * 100
+
+        # Classify regime and determine portfolio size
+        # Order matters: check most extreme conditions first
+        if vix < 15 and spy_vs_ma200_pct > 5:
+            # STRONG BULL: Very low fear + strong uptrend
+            top_n = 3
+        elif vix < 20 and spy_vs_ma200_pct > 2:
+            # BULL: Low fear + uptrend
+            top_n = 4
+        elif vix > 40:
+            # CRISIS: Extreme fear (regardless of trend)
+            top_n = 10
+        elif vix > 30 or spy_vs_ma200_pct < -5:
+            # VOLATILE/BEAR: High fear OR downtrend
+            top_n = 7
+        else:
+            # NORMAL: Moderate conditions
+            top_n = 5
+
+        return top_n
+
     def calculate_market_trend_strength(self, date):
         """
         MARKET REGIME FILTER (Time-Series Momentum)

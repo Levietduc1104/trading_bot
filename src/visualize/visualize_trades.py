@@ -304,11 +304,16 @@ def create_performance_tab(portfolio_df, initial_capital):
     logger.info("  - Monthly returns")
     p4 = create_monthly_returns_chart(portfolio_df)
     plots.append(p4)
-    
-    # 5. Metrics summary
-    logger.info("  - Metrics summary table")
-    p5 = create_metrics_summary(metrics, portfolio_df)
+
+    # 5. Yearly returns
+    logger.info("  - Yearly returns")
+    p5 = create_yearly_returns_chart(portfolio_df)
     plots.append(p5)
+
+    # 6. Metrics summary
+    logger.info("  - Metrics summary table")
+    p6 = create_metrics_summary(metrics, portfolio_df)
+    plots.append(p6)
     
     return column(*plots)
 
@@ -1334,6 +1339,38 @@ def create_monthly_returns_chart(portfolio_df):
     p.xaxis.major_label_overrides = {months[i]: months[i] if i % 6 == 0 else "" 
                                      for i in range(len(months))}
     
+    return p
+
+
+def create_yearly_returns_chart(portfolio_df):
+    """Yearly returns bar chart"""
+
+    portfolio_df_copy = portfolio_df.copy()
+    portfolio_df_copy['year'] = portfolio_df_copy.index.year
+    yearly_returns = portfolio_df_copy.groupby('year')['value'].apply(
+        lambda x: (x.iloc[-1] / x.iloc[0] - 1) * 100 if len(x) > 0 else 0
+    )
+
+    years = [str(y) for y in yearly_returns.index]
+    returns = yearly_returns.values
+
+    colors = ['green' if r > 0 else 'red' for r in returns]
+
+    p = figure(x_range=years, width=1400, height=400,
+               title="Yearly Returns (%)")
+
+    p.vbar(x=years, top=returns, width=0.8, color=colors, alpha=0.7)
+
+    p.line(years, [0] * len(years), line_width=1, color='gray', line_dash='dashed')
+
+    p.xaxis.axis_label = "Year"
+    p.yaxis.axis_label = "Return (%)"
+    p.xaxis.major_label_orientation = 0
+
+    # Add hover tool to show exact values
+    hover = HoverTool(tooltips=[("Year", "@x"), ("Return", "@top{0.1f}%")])
+    p.add_tools(hover)
+
     return p
 
 
