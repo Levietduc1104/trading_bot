@@ -19,3 +19,6 @@ venv/
 *.html
 # Output directory - generated results
 output/
+
+# Log files
+*.log
