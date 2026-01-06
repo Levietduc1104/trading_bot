@@ -2,21 +2,23 @@
 END-TO-END PORTFOLIO TRADING SYSTEM EXECUTION
 ==============================================
 
-V27: REGIME-BASED PORTFOLIO SIZE (Production Strategy)
+V28: MOMENTUM LEADERS (Production Strategy)
 
-This script runs the complete V27 trading system:
+This script runs the complete V28 trading system:
 1. Loads stock data
-2. Runs backtest with regime-based portfolio sizing + Kelly weighting
+2. Runs backtest with momentum leader selection + regime-based sizing
 3. Saves results to database
 4. Generates visualizations
 5. Creates performance reports
 
-Strategy: V27 Regime-Based
-- Dynamic portfolio size (3-10 stocks) based on market regime
-- Kelly position sizing (weight ∝ √score)
+Strategy: V28 Momentum Leaders
+- 52-week breakout bonus (0-20 pts) - prioritize stocks near all-time highs
+- Relative strength vs SPY (0-15 pts) - only buy market leaders
+- Dynamic portfolio size (3-10 stocks) based on market regime (V27)
+- Kelly position sizing (weight ∝ √score) (V22)
 - VIX-based regime detection
 - Portfolio-level drawdown control
-- Expected: 8.5% annual, -17.7% max DD, 1.17 Sharpe (better risk-adjusted)
+- Expected: 9.4% annual, -18.0% max DD, 1.00 Sharpe, 85% win rate
 
 Output:
 - Database: output/data/trading_results.db
@@ -90,20 +92,21 @@ def calculate_kelly_weights_sqrt(scored_stocks):
     return weights
 
 
-def run_v27_backtest(bot):
+def run_v28_backtest(bot):
     """
-    Run V27 backtest with Kelly-weighted position sizing + Regime-Based Portfolio Size
+    Run V28 backtest with Momentum Leaders + Regime-Based Portfolio Size
 
-    All V22 features remain:
-    - VIX regime detection
-    - Momentum scoring
-    - Drawdown control
-    - Dynamic cash reserves
+    V28 NEW Features:
+    - 52-week breakout bonus (0-20 pts) - stocks near highs
+    - Relative strength vs SPY (0-15 pts) - market leaders only
+
+    V27 Features (maintained):
+    - Regime-based portfolio sizing (3-10 stocks)
     - Kelly position sizing (Square Root)
-
-    NEW (V27): Portfolio size varies by regime (3-10 stocks)
+    - VIX-based cash reserves
+    - Drawdown control
     """
-    logger.info("Running V27 backtest (Regime-Based Portfolio Size)...")
+    logger.info("Running V28 backtest (Momentum Leaders)...")
 
     first_ticker = list(bot.stocks_data.keys())[0]
     dates = bot.stocks_data[first_ticker].index
@@ -244,10 +247,13 @@ def run_backtest(data_dir='sp500_data/daily', initial_capital=100000):
     logger.info("Scoring stocks...")
     bot.score_all_stocks()
 
-    logger.info("Running backtest with V27 REGIME-BASED PORTFOLIO SIZE...")
+    logger.info("Running backtest with V28 MOMENTUM LEADERS...")
     logger.info("Configuration:")
-    logger.info("  V27 Production: Adaptive portfolio size (3-10 stocks) with Kelly weighting ⭐")
-    logger.info("  - Portfolio: Dynamic based on market regime")
+    logger.info("  V28 Production: Momentum Leaders + Regime-Based Portfolio ⭐")
+    logger.info("  - NEW V28 Momentum Factors:")
+    logger.info("    • 52-week breakout bonus (0-20 pts) - prioritize stocks near highs")
+    logger.info("    • Relative strength vs SPY (0-15 pts) - only buy market leaders")
+    logger.info("  - V27 Portfolio Sizing:")
     logger.info("    • Strong Bull (VIX<15, SPY>>MA200): 3 stocks (concentrate)")
     logger.info("    • Bull (VIX<20, SPY>MA200): 4 stocks")
     logger.info("    • Normal (VIX 20-30): 5 stocks")
@@ -260,13 +266,13 @@ def run_backtest(data_dir='sp500_data/daily', initial_capital=100000):
     logger.info("  - Trading fee: 0.1% per trade (10 basis points)")
     logger.info("")
     logger.info("  Expected performance:")
-    logger.info("    • Annual return: 8.5% (similar to V22)")
-    logger.info("    • Max drawdown: -17.7% (slightly worse but acceptable)")
-    logger.info("    • Sharpe ratio: 1.17 (BETTER than V22's 1.11) +5.4% improvement")
-    logger.info("    • Win rate: 75% (15/20 positive years)")
+    logger.info("    • Annual return: 9.4% (+0.9% vs V27)")
+    logger.info("    • Max drawdown: -18.0% (slightly worse)")
+    logger.info("    • Sharpe ratio: 1.00 (lower but acceptable)")
+    logger.info("    • Win rate: 85% (17/20 positive years) +10% vs V27")
 
-    # Run V27 backtest with regime-based portfolio sizing
-    portfolio_df = run_v27_backtest(bot)
+    # Run V28 backtest with momentum leaders
+    portfolio_df = run_v28_backtest(bot)
 
     # Rename 'value' column to 'portfolio_value' for consistency
     if 'value' in portfolio_df.columns:
@@ -349,7 +355,7 @@ def log_metrics(metrics):
         logger.info(f"  {year}: {ret:6.1f}% {status}")
 
 
-def save_to_database(portfolio_df, metrics, strategy_type='V27_REGIME_BASED'):
+def save_to_database(portfolio_df, metrics, strategy_type='V28_MOMENTUM_LEADERS'):
     """Save results to database"""
     log_header("STEP 2: SAVING TO DATABASE")
 
@@ -451,7 +457,7 @@ def create_text_report(portfolio_df, metrics, output_dir='output/reports'):
         f.write("PORTFOLIO TRADING SYSTEM - PERFORMANCE REPORT\n")
         f.write("=" * 80 + "\n")
         f.write(f"Generated: {timestamp}\n")
-        f.write(f"Strategy: V27 Production (Regime-Based Portfolio Size)\n")
+        f.write(f"Strategy: V28 Production (Momentum Leaders)\n")
         f.write("=" * 80 + "\n\n")
 
         # Summary metrics
@@ -480,23 +486,27 @@ def create_text_report(portfolio_df, metrics, output_dir='output/reports'):
         f.write("\n" + "=" * 80 + "\n")
         f.write("STRATEGY CONFIGURATION\n")
         f.write("=" * 80 + "\n")
-        f.write("  V27: REGIME-BASED PORTFOLIO SIZE + KELLY WEIGHTING\n")
-        f.write("  - Portfolio Size: Dynamic (3-10 stocks) based on market regime\n")
+        f.write("  V28: MOMENTUM LEADERS + REGIME-BASED PORTFOLIO SIZE\n")
+        f.write("  NEW V28 Momentum Factors:\n")
+        f.write("    - 52-week breakout bonus (0-20 pts) - stocks near all-time highs\n")
+        f.write("    - Relative strength vs SPY (0-15 pts) - only buy market leaders\n")
+        f.write("  V27 Portfolio Sizing (maintained):\n")
         f.write("    * Strong Bull (VIX<15, SPY>>MA200): 3 stocks (concentrate)\n")
         f.write("    * Bull (VIX<20, SPY>MA200): 4 stocks\n")
         f.write("    * Normal (VIX 20-30): 5 stocks\n")
         f.write("    * Volatile (VIX 30-40, SPY<MA200): 7 stocks (diversify)\n")
         f.write("    * Crisis (VIX>40): 10 stocks (maximum diversification)\n")
-        f.write("  - Position Weighting: Kelly-weighted (weight ∝ √score)\n")
-        f.write("  - Rebalancing: Monthly (day 7-10 of each month)\n")
-        f.write("  - Cash Reserve: Dynamic (5% to 70% based on VIX)\n")
-        f.write("  - Drawdown Control:\n")
-        f.write("    * DD < 10%:  100% invested\n")
-        f.write("    * DD 10-15%: 75% invested\n")
-        f.write("    * DD 15-20%: 50% invested\n")
-        f.write("    * DD ≥ 20%:  25% invested (maximum defense)\n")
-        f.write("  - Regime Detection: VIX-based (forward-looking)\n")
-        f.write("  - Trading Fee: 0.1% per trade\n\n")
+        f.write("  Other Features:\n")
+        f.write("    - Position Weighting: Kelly-weighted (weight ∝ √score)\n")
+        f.write("    - Rebalancing: Monthly (day 7-10 of each month)\n")
+        f.write("    - Cash Reserve: Dynamic (5% to 70% based on VIX)\n")
+        f.write("    - Drawdown Control:\n")
+        f.write("      * DD < 10%:  100% invested\n")
+        f.write("      * DD 10-15%: 75% invested\n")
+        f.write("      * DD 15-20%: 50% invested\n")
+        f.write("      * DD ≥ 20%:  25% invested (maximum defense)\n")
+        f.write("    - Regime Detection: VIX-based (forward-looking)\n")
+        f.write("    - Trading Fee: 0.1% per trade\n\n")
 
         f.write("=" * 80 + "\n")
         f.write("END OF REPORT\n")
@@ -588,8 +598,8 @@ def main():
             logger.warning("  ⚠️  Visualization: Failed to generate")
         logger.info("")
         logger.info(f"Run ID: {run_id}")
-        logger.info(f"Strategy: V27 Production (Regime-Based Portfolio Size)")
-        logger.info(f"Portfolio: Dynamic 3-10 stocks (regime-adaptive)")
+        logger.info(f"Strategy: V28 Production (Momentum Leaders)")
+        logger.info(f"Portfolio: Dynamic 3-10 stocks + Momentum filters")
         logger.info(f"Annual Return: {metrics['annual_return']:.1f}%")
         logger.info(f"Max Drawdown: {metrics['max_drawdown']:.1f}%")
         logger.info(f"Sharpe Ratio: {metrics['sharpe_ratio']:.2f}")

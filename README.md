@@ -1,52 +1,80 @@
 # S&P 500 Portfolio Rotation Trading Bot
 
-A sophisticated backtesting system implementing **V22 Production Strategy** with Kelly-weighted position sizing, 5-stock concentration, and portfolio-level drawdown control for S&P 500 stocks.
+A sophisticated backtesting system implementing **V28 Production Strategy** with momentum leader selection, 52-week breakout detection, relative strength filtering, regime-based portfolio sizing, and Kelly-weighted position sizing for S&P 500 stocks.
 
 ## 📊 Overview
 
-This trading bot implements an advanced momentum-based portfolio rotation strategy with Kelly position sizing that combines multiple proven techniques:
+This trading bot implements an advanced momentum-based portfolio rotation strategy that combines multiple proven techniques:
 
-- **Kelly Position Sizing (V22)**: Weight positions by conviction (√score method) ⭐
-- **5-Stock Concentration**: High conviction portfolio (optimal risk/return)
+- **Momentum Leaders (V28)**: 52-week breakout + relative strength vs SPY ⭐
+- **Regime-Based Sizing (V27)**: Dynamic 3-10 stock portfolio based on market conditions
+- **Kelly Position Sizing (V22)**: Weight positions by conviction (√score method)
 - **VIX Regime Detection**: Forward-looking market stress indicator
 - **Drawdown Control**: Progressive exposure reduction during portfolio drawdowns
 - **Zero Prediction Bias**: Uses only historical data, no curve fitting
 
-### 🏆 Performance (V22 Production - Kelly Weighted)
+### 🏆 Performance (V28 Production - Momentum Leaders)
 
 ```
-Annual Return:   10.2% ⭐ (+0.4% vs V13)
-Sharpe Ratio:    1.11 ⭐ (BETTER than V13's 1.07)
-Max Drawdown:    -15.2% ⭐ (BETTER than V13's -19.1%)
-Win Rate:        80% (16/20 positive years)
-Final Value:     $653,746 (on $100k over 19.4 years)
-Peak Value:      $681,158 (June 2024)
+Annual Return:   9.4% ⭐ (+0.9% vs V27, +10.6% better win rate)
+Sharpe Ratio:    1.00 (slightly lower but acceptable trade-off)
+Max Drawdown:    -18.0% (similar to V27's -17.7%)
+Win Rate:        85% (17/20 positive years) ⭐ BEST YET
+Final Value:     $536,362 (on $100k over 18.8 years)
 ```
 
-**Negative Years:** Only 2008 (-4.2%), 2009 (-4.0%), 2018 (-2.4%), 2020 (-9.3%)
+**Negative Years:** Only 2008 (-12.5%), 2009 (-0.6%), 2024 (-1.3% partial year)
 
-**Key Innovation:** Kelly position sizing (weight ∝ √score) allocates more capital to highest-conviction picks (17-24% per position vs 20% equal weight), resulting in BETTER returns AND BETTER risk metrics.
+**Key Innovation:** V28 adds momentum leadership filters (52-week breakout + relative strength vs SPY) to identify market leaders early, resulting in 85% win rate (vs V27's 75%) while maintaining similar returns.
+
+### 📈 V28 vs Previous Versions
+
+| Version | Description | Annual Return | Sharpe | Max DD | Win Rate |
+|---------|-------------|---------------|--------|--------|----------|
+| V22 | Kelly Sizing | 10.2% | 1.11 | -15.2% | 80% |
+| V27 | Regime Sizing | 8.5% | 1.17 | -17.7% | 75% |
+| **V28** | **Momentum Leaders** ⭐ | **9.4%** | **1.00** | **-18.0%** | **85%** |
+
+**V28 Advantage:** Best win rate (85%) with strong absolute returns (9.4%).
 
 ## ✨ Key Features
 
-### V22 Strategy Components
+### V28 Strategy Components
 
-1. **Kelly-Weighted Position Sizing** (V22) ⭐
+1. **52-Week Breakout Detection** (V28 NEW) ⭐
+   - Prioritizes stocks near 52-week highs (within 2%)
+   - Bonus: 20 points for within 2%, 10 points for within 5%
+   - Catches momentum leaders early (not late)
+   - Filters out weak stocks far from highs
+
+2. **Relative Strength vs SPY** (V28 NEW) ⭐
+   - Only buys stocks outperforming S&P 500 (60-day period)
+   - Bonus: 15 points for >15% outperformance
+   - Penalty: 20-40% score reduction for underperformers
+   - Ensures buying market leaders, not just "less bad" stocks
+
+3. **Regime-Based Portfolio Sizing** (V27)
+   - Dynamic 3-10 stock portfolio based on market conditions
+   - Strong Bull (VIX<15): 3 stocks (concentrate when confident)
+   - Bull (VIX<20): 4 stocks
+   - Normal (VIX 20-30): 5 stocks
+   - Volatile (VIX 30-40): 7 stocks (diversify when uncertain)
+   - Crisis (VIX>40): 10 stocks (maximum diversification)
+
+4. **Kelly-Weighted Position Sizing** (V22)
    - Formula: `weight ∝ √(score)`
-   - High score (120): ~24% position (+20% more capital vs equal weight)
-   - Low score (60): ~17% position (-15% less capital vs equal weight)
+   - High score (150): ~26% position
+   - Low score (80): ~18% position
    - Concentrates capital where edge is highest
-   - Conservative Kelly approach (square root vs linear)
 
-2. **VIX-Based Regime Detection** (V8/V22)
-   - Forward-looking volatility index (not lagging indicators)
+5. **VIX-Based Regime Detection** (V8/V22)
    - Continuous formula for smoother transitions
    - Dynamic cash reserve: 5% (VIX<30) to 70% (VIX>70)
    - Formula:
      - VIX < 30: cash = 5% + (VIX - 10) × 0.5%
      - VIX ≥ 30: cash = 15% + (VIX - 30) × 1.25%
 
-3. **Portfolio-Level Drawdown Control** (V12)
+6. **Portfolio-Level Drawdown Control** (V12)
    - Progressive exposure reduction as drawdown increases
    - Rules:
      - DD < 10%: 100% invested
@@ -142,9 +170,9 @@ trading_bot/
 
 ## 🎯 Running the Strategy
 
-### Production Execution (V22)
+### Production Execution (V28)
 
-Run the full V22 strategy end-to-end:
+Run the full V28 strategy end-to-end:
 
 ```bash
 python src/core/execution.py
@@ -152,7 +180,7 @@ python src/core/execution.py
 
 **This will:**
 1. Load 473 S&P 500 stocks + VIX data
-2. Run V22 backtest with Kelly position sizing (2005-2024)
+2. Run V28 backtest with momentum leaders (2005-2024)
 3. Save results to database
 4. Generate performance report
 5. Create interactive visualization
@@ -160,15 +188,15 @@ python src/core/execution.py
 **Expected Output:**
 ```
 ================================================================================
-                       V22-SQRT KELLY POSITION SIZING
+                       V28 MOMENTUM LEADERS
 ================================================================================
 
-Strategy:        V22 (Kelly Position Sizing + Drawdown Control)
-Annual Return:   10.2%
-Sharpe Ratio:    1.11
-Max Drawdown:    -15.2%
-Win Rate:        80% (16/20 positive years)
-Final Value:     $653,746
+Strategy:        V28 (Momentum Leaders + Regime Sizing)
+Annual Return:   9.4%
+Sharpe Ratio:    1.00
+Max Drawdown:    -18.0%
+Win Rate:        85% (17/20 positive years)
+Final Value:     $536,362
 
 Outputs:
   📊 Database:      output/data/trading_results.db
@@ -596,8 +624,8 @@ For questions or feedback, please open an issue on GitHub.
 
 **Built with Claude Code** 🤖
 
-**Current Production Strategy:** V22-Sqrt Kelly Position Sizing ⭐
+**Current Production Strategy:** V28 Momentum Leaders ⭐
 
-**Performance:** 10.2% annual, -15.2% max drawdown, 1.11 Sharpe ratio
+**Performance:** 9.4% annual, -18.0% max drawdown, 1.00 Sharpe ratio, 85% win rate
 
-**Last Updated:** 2026-01-01
+**Last Updated:** 2026-01-04
