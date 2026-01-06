@@ -176,15 +176,20 @@ class PortfolioRotationBot:
 
     def score_stock(self, ticker, df):
         """
-        V7 STOCK SCORING: 0-150 points
+        V28 STOCK SCORING: 0-220 points (V28 base + V29 multi-timeframe)
 
         Combines:
         - V5 base scoring (3 factors: Trend 50pts, Performance 30pts, Risk 20pts)
         - V6 momentum filters (quality gates)
         - V7 sector relative strength (sector leadership bonus)
+        - V28 momentum enhancements:
+          * 52-week breakout bonus (0-20 pts) - stocks near all-time highs
+          * Relative strength vs SPY (0-15 pts) - market leaders only
+        - V29 multi-timeframe alignment:
+          * Multi-TF bonus (0-20 pts) - trend alignment across daily/weekly/monthly
 
         Returns:
-            float: Score 0-150 (0 = disqualified, higher = better)
+            float: Score 0-220 (0 = disqualified, higher = better)
         """
         latest = df.iloc[-1]
         score = 0
@@ -262,7 +267,52 @@ class PortfolioRotationBot:
         sector_bonus = self.calculate_sector_relative_strength(ticker, df)
         score += sector_bonus
 
-        return min(score, 150)  # Cap at 150
+        # ====================
+        # V28 MOMENTUM ENHANCEMENTS
+        # ====================
+
+        # Factor 4: 52-Week Breakout (0-20 pts)
+        # Stocks near 52-week highs show institutional accumulation
+        distance_52w = self.calculate_52week_high_distance(df)
+        if distance_52w > -2:  # Within 2% of 52-week high
+            score += 20  # Strong breakout signal
+        elif distance_52w > -5:  # Within 5%
+            score += 10  # Near breakout
+        elif distance_52w > -10:  # Within 10%
+            score += 5   # Approaching breakout
+
+        # Factor 5: Relative Strength vs SPY (0-15 pts)
+        # Only buy market leaders that outperform benchmark
+        relative_strength = self.calculate_relative_strength_vs_spy(ticker, df, periods=60)
+
+        if relative_strength < -999:  # Insufficient data
+            return 0  # DISQUALIFY
+
+        if relative_strength > 15:  # Massive outperformance
+            score += 15
+        elif relative_strength > 10:  # Strong outperformance
+            score += 12
+        elif relative_strength > 5:  # Moderate outperformance
+            score += 8
+        elif relative_strength > 0:  # Slight outperformance
+            score += 3
+        elif relative_strength < -10:  # Massive underperformance
+            score *= 0.6  # 40% penalty
+        elif relative_strength < -5:  # Underperformance
+            score *= 0.8  # 20% penalty
+
+        # ====================
+        # V29 MULTI-TIMEFRAME ALIGNMENT
+        # ====================
+
+        # Factor 6: Multi-Timeframe Alignment (0-20 pts)
+        # Only award bonus if price is above daily, weekly, AND monthly MAs
+        # This filters out weak trends that only look good on one timeframe
+        multi_tf_aligned = self.calculate_multi_timeframe_alignment(df)
+        if multi_tf_aligned:
+            score += 20  # Strong trend across all timeframes
+
+        return min(score, 220)  # Cap at 220
 
     def score_all_stocks(self):
         """Score all stocks"""
@@ -689,6 +739,116 @@ class PortfolioRotationBot:
         cash_reserve = np.clip(cash_reserve, 0.05, 0.70)
 
         return cash_reserve
+
+    def calculate_52week_high_distance(self, df):
+        """
+        V28: Calculate distance from 52-week high
+
+        Momentum stocks tend to make new highs. Stocks near 52-week highs
+        show strong relative strength and institutional accumulation.
+
+        Args:
+            df: Stock dataframe (already filtered to current date)
+
+        Returns:
+            float: Percentage distance from 52-week high (-100 to 0)
+                  -2 means 2% below 52-week high
+                  0 means AT 52-week high
+        """
+        if len(df) < 252:  # Need at least 1 year of data
+            return -100  # Far from high if insufficient data
+
+        # Calculate 52-week high (252 trading days)
+        week_52_high = df['high'].tail(252).max()
+        current_price = df.iloc[-1]['close']
+
+        # Distance from 52-week high (negative or zero)
+        distance_pct = ((current_price - week_52_high) / week_52_high) * 100
+
+        return distance_pct
+
+    def calculate_relative_strength_vs_spy(self, ticker, df, periods=60):
+        """
+        V28: Calculate relative strength vs SPY
+
+        Only buy stocks that are outperforming the market. This filters
+        out sector laggards and focuses on true market leaders.
+
+        Args:
+            ticker: Stock ticker
+            df: Stock dataframe (already filtered to current date)
+            periods: Lookback period in days (default 60 = 3 months)
+
+        Returns:
+            float: Relative strength in percentage points
+                  10 means stock outperformed SPY by 10% over period
+                  -5 means stock underperformed SPY by 5%
+        """
+        if ticker == 'SPY':
+            return 0  # SPY has no relative strength to itself
+
+        if len(df) < periods:
+            return -999  # Insufficient data = disqualify
+
+        # Get SPY data
+        spy_data = self.stocks_data.get('SPY')
+        if spy_data is None:
+            return 0  # No SPY data available
+
+        # Align dates - only use data up to current date
+        current_date = df.index[-1]
+        spy_at_date = spy_data[spy_data.index <= current_date]
+
+        if len(spy_at_date) < periods:
+            return 0
+
+        # Calculate returns over period
+        stock_return = ((df.iloc[-1]['close'] / df.iloc[-periods]['close']) - 1) * 100
+        spy_return = ((spy_at_date.iloc[-1]['close'] / spy_at_date.iloc[-periods]['close']) - 1) * 100
+
+        # Relative strength = stock return - benchmark return
+        relative_strength = stock_return - spy_return
+
+        return relative_strength
+
+    def calculate_multi_timeframe_alignment(self, df):
+        """
+        V29: Multi-Timeframe Momentum Alignment
+
+        Checks if price is trending up across multiple timeframes.
+        This filters out stocks that only look good on daily charts
+        but are weak on weekly/monthly timeframes.
+
+        Timeframes:
+        - Daily: EMA-89 (already checked in V6 filters)
+        - Weekly: 100-day MA (~20 weeks)
+        - Monthly: 200-day MA (~10 months)
+
+        Args:
+            df: Stock dataframe (already filtered to current date)
+
+        Returns:
+            bool: True if all timeframes aligned (bullish), False otherwise
+        """
+        if len(df) < 200:  # Need 200 days for monthly MA
+            return False
+
+        current_price = df.iloc[-1]['close']
+
+        # Daily trend: EMA-89 (already have from indicators)
+        ema_89 = df.iloc[-1]['ema_89']
+        daily_bullish = current_price > ema_89
+
+        # Weekly trend: 100-day MA (~20 weeks)
+        ma_100 = df['close'].tail(100).mean()
+        weekly_bullish = current_price > ma_100
+
+        # Monthly trend: 200-day MA (~10 months)
+        ma_200 = df['close'].tail(200).mean()
+        monthly_bullish = current_price > ma_200
+
+        # All timeframes must be aligned
+        return daily_bullish and weekly_bullish and monthly_bullish
 
     def determine_portfolio_size(self, date):
         """
