@@ -1,5 +1,5 @@
 """
-Monte Carlo simulation framework for trading strategy robustness testing
+Monte Carlo simulation framework for trading strategies
 """
 
-__all__ = ['MonteCarloSimulator']
+__all__ = ['SimpleSimulator']
