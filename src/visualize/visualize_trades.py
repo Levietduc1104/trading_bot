@@ -194,7 +194,7 @@ def create_trade_visualizations():
 
     # For Tab 1 (trading analysis), we still need to run a minimal backtest to get trade logs
     # But we use the portfolio_df from database for Tab 2 (performance charts)
-    data_dir = os.path.join(script_dir, '..', '..', 'sp500_data', 'daily')
+    data_dir = os.path.join(script_dir, '..', '..', 'sp500_data', 'sp500_filtered')
     bot = PortfolioRotationBot(data_dir=data_dir, initial_capital=initial_capital)
     bot.prepare_data()
     bot.score_all_stocks()
