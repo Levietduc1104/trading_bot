@@ -224,11 +224,11 @@ def log_header(title):
     logger.info("=" * 80)
 
 
-def run_backtest(data_dir='sp500_data/sp500_filtered', initial_capital=100000):
+def run_backtest(data_dir='sp500_data/stock_data_1990_2024_top500', initial_capital=100000):
     """
     Run backtest with adaptive regime protection
 
-    Uses filtered S&P 500 dataset (464 stocks) with adjusted prices + dividends
+    Uses top 500 filtered dataset (466 stocks) from 1990-2024 with adjusted prices + dividends
 
     Returns:
         tuple: (portfolio_df, bot, metrics)
