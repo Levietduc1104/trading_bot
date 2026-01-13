@@ -28,6 +28,7 @@ Output:
 """
 import sys
 import os
+import time
 from datetime import datetime
 import logging
 
@@ -106,6 +107,7 @@ def run_v28_backtest(bot):
     - VIX-based cash reserves
     - Drawdown control
     """
+    start_backtest = time.time()
     logger.info("Running V28 backtest (Momentum Leaders)...")
 
     first_ticker = list(bot.stocks_data.keys())[0]
@@ -129,24 +131,28 @@ def run_v28_backtest(bot):
         if is_rebalance_day:
             # Liquidate holdings
             for ticker in list(holdings.keys()):
-                df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                df_at_date = bot.get_data_up_to_date(ticker, date)
                 if len(df_at_date) > 0:
                     current_price = df_at_date.iloc[-1]['close']
                     cash += holdings[ticker] * current_price
             holdings = {}
             last_rebalance_date = date
 
-            # Get current VIX
-            vix_at_date = bot.vix_data[bot.vix_data.index <= date] if bot.vix_data is not None else None
+            # Get current VIX (optimized)
+            if bot.vix_data is not None:
+                vix_at_date = bot.get_data_up_to_date('VIX', date) if 'VIX' in bot.date_index_cache else bot.vix_data[bot.vix_data.index <= date]
+            else:
+                vix_at_date = None
+
             if vix_at_date is not None and len(vix_at_date) > 0:
                 vix = vix_at_date.iloc[-1]['close']
             else:
                 vix = 20
 
-            # Score stocks (V13 scoring)
+            # Score stocks (V13 scoring) - OPTIMIZED
             current_scores = {}
             for ticker, df in bot.stocks_data.items():
-                df_at_date = df[df.index <= date]
+                df_at_date = bot.get_data_up_to_date(ticker, date)
                 if len(df_at_date) >= 100:
                     try:
                         current_scores[ticker] = bot.score_stock(ticker, df_at_date)
@@ -191,9 +197,9 @@ def run_v28_backtest(bot):
                     for ticker, amount in allocations.items()
                 }
 
-            # Buy stocks
+            # Buy stocks (optimized)
             for ticker, _ in top_stocks:
-                df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                df_at_date = bot.get_data_up_to_date(ticker, date)
                 if len(df_at_date) > 0:
                     current_price = df_at_date.iloc[-1]['close']
                     allocation_amount = allocations.get(ticker, 0)
@@ -202,10 +208,10 @@ def run_v28_backtest(bot):
                     fee = allocation_amount * 0.001
                     cash -= (allocation_amount + fee)
 
-        # Calculate daily portfolio value
+        # Calculate daily portfolio value (optimized - runs every day)
         stocks_value = 0
         for ticker, shares in holdings.items():
-            df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+            df_at_date = bot.get_data_up_to_date(ticker, date)
             if len(df_at_date) > 0:
                 current_price = df_at_date.iloc[-1]['close']
                 stocks_value += shares * current_price
@@ -214,6 +220,11 @@ def run_v28_backtest(bot):
         portfolio_values.append({'date': date, 'value': total_value})
 
     portfolio_df = pd.DataFrame(portfolio_values).set_index('date')
+
+    backtest_time = time.time() - start_backtest
+    num_days = len(dates[100:])
+    logger.info(f"✓ Backtest execution: {backtest_time:.1f}s ({num_days} trading days)")
+
     return portfolio_df
 
 
@@ -244,7 +255,10 @@ def run_backtest(data_dir='sp500_data/stock_data_1983_2003_top500', initial_capi
     bot = PortfolioRotationBot(data_dir=full_data_dir, initial_capital=initial_capital)
 
     logger.info("Loading stock data...")
+    start_load = time.time()
     bot.prepare_data()
+    load_time = time.time() - start_load
+    logger.info(f"✓ Data loading: {load_time:.1f}s")
 
     logger.info("Scoring stocks...")
     bot.score_all_stocks()
