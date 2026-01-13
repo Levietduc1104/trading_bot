@@ -18,6 +18,8 @@ import glob
 import os
 import logging
 from datetime import datetime
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -65,6 +67,45 @@ SECTOR_MAP = {
 }
 
 
+def _load_single_csv(file_path):
+    """
+    Helper function for parallel CSV loading.
+    Must be at module level for ProcessPoolExecutor pickling.
+
+    Args:
+        file_path: Path to CSV file
+
+    Returns:
+        tuple: (ticker, dataframe) or (ticker, None) if error
+    """
+    ticker = os.path.basename(file_path).replace('.csv', '')
+    try:
+        # Use dtype optimization for memory efficiency
+        dtype_spec = {
+            'open': 'float32',
+            'high': 'float32',
+            'low': 'float32',
+            'close': 'float32'
+            # Note: volume intentionally omitted to let pandas infer
+            # (some files have NaN or float values that can't be int32)
+        }
+        df = pd.read_csv(
+            file_path,
+            index_col=0,
+            parse_dates=True,
+            dtype=dtype_spec
+        )
+        df.columns = [col.lower() for col in df.columns]
+
+        # Convert volume to int32 where possible, but handle NaN gracefully
+        if 'volume' in df.columns:
+            df['volume'] = df['volume'].fillna(0).astype('int32')
+
+        return ticker, df
+    except Exception as e:
+        logger.warning(f"Error loading {ticker}: {e}")
+        return ticker, None
+
 
 class PortfolioRotationBot:
     """Complete portfolio rotation system"""
@@ -83,69 +124,137 @@ class PortfolioRotationBot:
     # ========================
 
     def load_all_stocks(self):
-        """Load all stock data"""
+        """Load all stock data with parallel processing and dtype optimization"""
         csv_files = glob.glob(f"{self.data_dir}/*.csv")
-        logger.info(f"Loading {len(csv_files)} stocks...")
+        logger.info(f"Loading {len(csv_files)} stocks in parallel...")
 
-        for file_path in csv_files:
-            ticker = os.path.basename(file_path).replace('.csv', '')
-            try:
-                df = pd.read_csv(file_path, index_col=0, parse_dates=True)
-                df.columns = [col.lower() for col in df.columns]
-                self.stocks_data[ticker] = df
-            except Exception as e:
-                logger.warning(f"Error loading {ticker}: {e}")
+        # Determine optimal number of worker processes
+        max_workers = min(multiprocessing.cpu_count(), len(csv_files))
+
+        # Use ProcessPoolExecutor for parallel loading
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all loading tasks
+            futures = {executor.submit(_load_single_csv, fp): fp for fp in csv_files}
+
+            # Collect results as they complete
+            for future in as_completed(futures):
+                ticker, df = future.result()
+                if df is not None:
+                    self.stocks_data[ticker] = df
 
         logger.info(f"Loaded {len(self.stocks_data)} stocks")
+
+    def _build_date_index_cache(self):
+        """
+        Pre-compute date indices for fast date-based filtering.
+        This eliminates O(n) boolean filtering on every rebalance day.
+
+        Builds a cache of numpy arrays for binary search operations.
+        """
+        logger.info("Building date index cache...")
+        self.date_index_cache = {}
+
+        for ticker, df in self.stocks_data.items():
+            # Store dates as numpy array for fast searchsorted operations
+            self.date_index_cache[ticker] = df.index.values
+
+        logger.info(f"Date index cache built for {len(self.date_index_cache)} stocks")
+
+    def get_data_up_to_date(self, ticker, date):
+        """
+        Fast date-based data retrieval using pre-computed indices.
+        Replaces: df[df.index <= date] which creates expensive boolean masks.
+
+        Args:
+            ticker: Stock ticker symbol
+            date: Target date (pandas Timestamp)
+
+        Returns:
+            DataFrame slice up to and including the target date
+
+        Performance: O(log n) binary search vs O(n) boolean filtering
+        """
+        if ticker not in self.date_index_cache:
+            # Fallback for stocks not in cache
+            return self.stocks_data[ticker][self.stocks_data[ticker].index <= date]
+
+        dates = self.date_index_cache[ticker]
+
+        # Convert date to same type as dates array for comparison
+        # dates array stores numpy datetime64 values
+        if isinstance(date, pd.Timestamp):
+            date_val = date.value  # Convert to int64 nanoseconds
+        else:
+            date_val = pd.Timestamp(date).value
+
+        # Binary search for date position (right side to include the date itself)
+        idx = np.searchsorted(dates.astype('int64'), date_val, side='right')
+
+        # Return slice (view, not copy) for memory efficiency
+        return self.stocks_data[ticker].iloc[:idx]
 
     # ========================
     # 2. TECHNICAL INDICATORS
     # ========================
 
     def add_indicators(self, df):
-        """Add all technical indicators"""
-        df = df.copy()
-
+        """
+        Add all technical indicators.
+        WARNING: Modifies dataframe in-place for performance optimization.
+        """
         # EMAs
         df['ema_13'] = df['close'].ewm(span=13, adjust=False).mean()
         df['ema_34'] = df['close'].ewm(span=34, adjust=False).mean()
         df['ema_89'] = df['close'].ewm(span=89, adjust=False).mean()
 
-        # RSI
+        # RSI (vectorized)
         delta = df['close'].diff()
-        gain = delta.where(delta > 0, 0).rolling(14).mean()
-        loss = -delta.where(delta < 0, 0).rolling(14).mean()
+        gain = delta.clip(lower=0).rolling(14).mean()
+        loss = (-delta).clip(lower=0).rolling(14).mean()
         rs = gain / loss
         df['rsi'] = 100 - (100 / (1 + rs))
 
-        # ATR
+        # ATR (optimized with np.maximum instead of pd.concat)
         hl = df['high'] - df['low']
-        hc = np.abs(df['high'] - df['close'].shift())
-        lc = np.abs(df['low'] - df['close'].shift())
-        tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
-        df['atr'] = tr.rolling(14).mean()
+        hc = (df['high'] - df['close'].shift()).abs()
+        lc = (df['low'] - df['close'].shift()).abs()
+        tr = np.maximum.reduce([hl, hc, lc])
+        df['atr'] = pd.Series(tr, index=df.index).rolling(14).mean()
 
         # ROC
         df['roc_20'] = df['close'].pct_change(20) * 100
 
-        # EMA alignment
-        df['ema_alignment'] = ((df['ema_13'] > df['ema_34']).astype(int) +
-                               (df['ema_34'] > df['ema_89']).astype(int))
+        # EMA alignment (explicit int8 for memory efficiency)
+        df['ema_alignment'] = ((df['ema_13'] > df['ema_34']).astype('int8') +
+                               (df['ema_34'] > df['ema_89']).astype('int8'))
 
         return df
 
     def prepare_data(self):
-        """Load and add indicators to all stocks"""
+        """Load and add indicators to all stocks, then build optimization caches"""
+        logger.info("Loading stock data...")
         self.load_all_stocks()
-        logger.info("Calculating indicators...")
 
+        # Build optimization caches after data loading
+        logger.info("Building date index cache...")
+        self._build_date_index_cache()
+
+        logger.info("Building sector peer cache...")
+        self._build_sector_peer_cache()
+
+        # Add technical indicators
+        logger.info("Calculating indicators...")
         for ticker in self.stocks_data.keys():
             self.stocks_data[ticker] = self.add_indicators(self.stocks_data[ticker])
 
-
-        # V8: Load VIX data for regime detection
+        # Load VIX data for regime detection
         self.load_vix_data()
-        logger.info("Indicators calculated")
+
+        # Build SPY cache after indicators are added
+        logger.info("Caching SPY lookback data...")
+        self._cache_spy_lookback_data()
+
+        logger.info("Data preparation complete")
 
     def load_vix_data(self):
         """
@@ -168,6 +277,59 @@ class PortfolioRotationBot:
             logger.warning(f"Could not load VIX data: {e}")
             logger.warning("Will fall back to adaptive regime detection")
             self.vix_data = None
+
+    def _build_sector_peer_cache(self):
+        """
+        Pre-compute sector peer groups once to optimize sector relative strength calculations.
+        Reduces O(n²) complexity to O(n) by avoiding repeated sector mapping lookups.
+        """
+        logger.info("Building sector peer cache...")
+        self.sector_peers = {}
+
+        for sector in set(self.sector_map.values()):
+            # Get all tickers in this sector that have loaded data
+            self.sector_peers[sector] = [
+                ticker for ticker, s in self.sector_map.items()
+                if s == sector and ticker in self.stocks_data
+            ]
+
+        logger.info(f"Built sector peer cache for {len(self.sector_peers)} sectors")
+
+    def _cache_spy_lookback_data(self):
+        """
+        Pre-calculate SPY return data for common lookback periods.
+        Eliminates repeated SPY data filtering and MA calculations.
+
+        Caches returns for periods: 60, 100, 200, 252 days
+        """
+        if 'SPY' not in self.stocks_data:
+            logger.warning("SPY not in dataset, skipping SPY cache")
+            self.spy_return_cache = None
+            self._spy_cache = None
+            return
+
+        logger.info("Caching SPY lookback data...")
+        spy_df = self.stocks_data['SPY']
+        self._spy_cache = spy_df  # Cache SPY dataframe reference
+        self.spy_return_cache = {}
+
+        # Pre-calculate rolling returns for common periods
+        for period in [60, 100, 200, 252]:
+            returns = {}
+            for i in range(period, len(spy_df)):
+                date = spy_df.index[i]
+                ret = ((spy_df['close'].iloc[i] / spy_df['close'].iloc[i-period]) - 1) * 100
+                returns[date] = ret
+            self.spy_return_cache[period] = returns
+
+        logger.info(f"Built SPY return cache for {len(self.spy_return_cache)} periods")
+
+    @property
+    def spy_data(self):
+        """Property for cached SPY data access"""
+        if not hasattr(self, '_spy_cache') or self._spy_cache is None:
+            self._spy_cache = self.stocks_data.get('SPY')
+        return self._spy_cache
 
 
     # ========================
@@ -1467,45 +1629,52 @@ class PortfolioRotationBot:
     
     def calculate_sector_relative_strength(self, ticker, df_at_date):
         """
-        V7 OPTIMIZATION: Sector Relative Strength
-        
+        V7 OPTIMIZATION: Sector Relative Strength (OPTIMIZED WITH CACHING)
+
         Awards bonus points for stocks outperforming their sector peers.
         This ensures we buy sector leaders, not just market leaders.
-        
+
+        Performance: O(n²) → O(n) with peer caching
+
         Args:
             ticker: Stock ticker symbol
             df_at_date: Stock dataframe up to current date
-        
+
         Returns:
             int: Bonus points -10 to +15
         """
         if len(df_at_date) < 60:
             return 0
-        
+
         # Get ticker's sector
         sector = self.sector_map.get(ticker, 'Other')
-        
+        if sector not in self.sector_peers:
+            return 0
+
         # Calculate 60-day return for this stock
         ticker_return = (df_at_date['close'].iloc[-1] / df_at_date['close'].iloc[-60] - 1) * 100
-        
-        # Calculate average return for sector peers
+
+        # Calculate average return for sector peers (using cached peer list)
+        current_date = df_at_date.index[-1]
         sector_returns = []
-        for peer_ticker, peer_sector in self.sector_map.items():
-            if peer_sector == sector and peer_ticker != ticker:
-                if peer_ticker in self.stocks_data:
-                    peer_df = self.stocks_data[peer_ticker]
-                    peer_at_date = peer_df[peer_df.index <= df_at_date.index[-1]]
-                    if len(peer_at_date) >= 60:
-                        peer_return = (peer_at_date['close'].iloc[-1] / peer_at_date['close'].iloc[-60] - 1) * 100
-                        sector_returns.append(peer_return)
-        
+
+        for peer_ticker in self.sector_peers[sector]:
+            if peer_ticker == ticker:
+                continue
+
+            # Use optimized date-based retrieval
+            peer_data = self.get_data_up_to_date(peer_ticker, current_date)
+            if len(peer_data) >= 60:
+                peer_return = (peer_data['close'].iloc[-1] / peer_data['close'].iloc[-60] - 1) * 100
+                sector_returns.append(peer_return)
+
         if not sector_returns:
             return 0
-        
+
         # Calculate outperformance vs sector
         sector_avg = np.mean(sector_returns)
         relative_strength = ticker_return - sector_avg
-        
+
         # Award bonus points
         if relative_strength > 10:
             return 15  # Crushing sector
@@ -1515,7 +1684,7 @@ class PortfolioRotationBot:
             return 5   # Modest outperformance
         elif relative_strength < -5:
             return -10  # Lagging sector
-        
+
         return 0
 
 

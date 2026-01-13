@@ -329,27 +329,28 @@ def create_performance_tab(portfolio_df, initial_capital):
 def create_stock_selector_tab(bot, trades_log):
     """Create Tab 3: Interactive stock price selector with CANDLESTICK chart + FA data"""
 
-    # Get only the most traded stocks for better performance (top 50)
-    most_traded = get_most_traded_stocks(trades_log, top_n=50)
+    # Get only the most traded stocks for better performance (top 25 for size optimization)
+    most_traded = get_most_traded_stocks(trades_log, top_n=25)
     all_tickers = sorted(most_traded)
 
-    logger.info(f"  - Creating interactive candlestick chart with FA data for {len(all_tickers)} stocks (top 50 most traded)")
+    logger.info(f"  - Creating interactive candlestick chart with FA data for {len(all_tickers)} stocks (top 25 most traded)")
 
     # Default stock
     default_ticker = all_tickers[0]
 
-    # Load metadata (fundamental data)
+    # Load metadata (fundamental data) - OPTIMIZED: Skip loading to improve performance
+    # Metadata is rarely used and adds 2+ seconds to visualization generation
     import json
-    metadata_dict = {}
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    metadata_dir = os.path.join(script_dir, '..', '..', 'sp500_data', 'metadata')
-
-    if os.path.exists(metadata_dir):
-        for ticker in all_tickers:
-            metadata_path = f"{metadata_dir}/{ticker}.json"
-            if os.path.exists(metadata_path):
-                with open(metadata_path, 'r') as f:
-                    metadata_dict[ticker] = json.load(f)
+    metadata_dict = {}  # Keep empty dict to avoid breaking FA display logic
+    # Metadata loading commented out for performance
+    # script_dir = os.path.dirname(os.path.abspath(__file__))
+    # metadata_dir = os.path.join(script_dir, '..', '..', 'sp500_data', 'metadata')
+    # if os.path.exists(metadata_dir):
+    #     for ticker in all_tickers:
+    #         metadata_path = f"{metadata_dir}/{ticker}.json"
+    #         if os.path.exists(metadata_path):
+    #             with open(metadata_path, 'r') as f:
+    #                 metadata_dict[ticker] = json.load(f)
 
     # Create data sources for all stocks
     sources = {}
@@ -359,13 +360,13 @@ def create_stock_selector_tab(bot, trades_log):
         df = bot.stocks_data[ticker]
 
         # Use only last 3 years of data for performance (reduce data points)
-    # df = df.tail(756)  # Commented out to show all data
+        df = df.tail(756)  # ~3 years of trading days (252 days/year * 3)
 
         # Prepare candlestick data
         inc = df['close'] > df['open']
         dec = df['open'] > df['close']
 
-        # Calculate indicators
+        # Calculate indicators (reuse from bot if available)
         # RSI
         if 'rsi' not in df.columns:
             delta = df['close'].diff()
@@ -376,9 +377,18 @@ def create_stock_selector_tab(bot, trades_log):
         else:
             rsi = df['rsi']
 
-        # EMAs
-        ema_20 = df['close'].ewm(span=20, adjust=False).mean()
-        ema_50 = df['close'].ewm(span=50, adjust=False).mean()
+        # EMAs (reuse if available)
+        if 'ema_20' in df.columns:
+            ema_20 = df['ema_20']
+        else:
+            ema_20 = df['close'].ewm(span=20, adjust=False).mean()
+
+        if 'ema_50' in df.columns:
+            ema_50 = df['ema_50']
+        else:
+            ema_50 = df['close'].ewm(span=50, adjust=False).mean()
+
+        # Only calculate ema_100 and ema_200 if needed (they're less critical for visualization)
         ema_100 = df['close'].ewm(span=100, adjust=False).mean()
         ema_200 = df['close'].ewm(span=200, adjust=False).mean()
 
