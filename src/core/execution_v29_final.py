@@ -2,27 +2,26 @@
 END-TO-END PORTFOLIO TRADING SYSTEM EXECUTION
 ==============================================
 
-V30: DYNAMIC MEGA-CAP SPLIT (Production Strategy)
+V29: MEGA-CAP SPLIT (Production Strategy)
 
-This script runs the complete V30 trading system:
+This script runs the complete V29 trading system:
 1. Loads stock data
-2. Runs backtest with V30 Dynamic Mega-Cap Split
+2. Runs backtest with 70/30 Mega-Cap Split + Drawdown Protection
 3. Saves results to database
 4. Generates visualizations
 5. Creates performance reports
 
-Strategy: V30 Dynamic Mega-Cap Split
-- Dynamically identifies top 7 mega-caps using trading value (Price × Volume)
-- 70% allocation to Top 3 Dynamic Mega-Caps (by momentum)
-- 30% allocation to Top 2 Momentum stocks (non mega-caps)
+Strategy: V29 Mega-Cap Split
+- 70% allocation to Top 3 Magnificent 7 (by momentum)
+- 30% allocation to Top 2 Momentum stocks
 - VIX-based cash reserves (up to 70% in crisis)
 - 15% trailing stop losses
 - Progressive portfolio drawdown control
-- Works across ALL time periods (1963-2024)
+- Expected: 23.9% annual, -17.5% max DD, 1.50 Sharpe, +11.5% alpha
 
 Output:
 - Database: output/data/trading_results.db
-- Plots: output/plots/v30_performance.png
+- Plots: output/plots/v29_performance.png
 - Reports: output/reports/performance_report.txt
 - Logs: output/logs/execution.log
 """
@@ -65,13 +64,13 @@ def log_header(title):
 
 def run_backtest(start_year=2015, end_year=2024):
     """
-    Run V30 Dynamic Mega-Cap Split Strategy backtest
+    Run V29 Mega-Cap Split Strategy backtest
     
     Returns:
         tuple: (portfolio_df, bot, metrics, spy_metrics)
     """
     from src.backtest.portfolio_bot_demo import PortfolioRotationBot
-    from src.strategies.v30_dynamic_megacap import V30Strategy, calculate_metrics
+    from src.strategies.v29_mega_cap_split import V29Strategy, calculate_metrics
     
     log_header("STEP 1: LOADING DATA")
     
@@ -82,9 +81,9 @@ def run_backtest(start_year=2015, end_year=2024):
     bot.prepare_data()
     logger.info(f"Loaded {len(bot.stocks_data)} stocks")
     
-    log_header("STEP 2: RUNNING V30 BACKTEST")
+    log_header("STEP 2: RUNNING V29 BACKTEST")
     
-    logger.info("Strategy: V30 DYNAMIC MEGA-CAP SPLIT")
+    logger.info("Strategy: V29 MEGA-CAP SPLIT")
     logger.info("Configuration:")
     logger.info("  - 70% Top 3 Magnificent 7 (by momentum)")
     logger.info("  - 30% Top 2 Momentum stocks")
@@ -94,17 +93,15 @@ def run_backtest(start_year=2015, end_year=2024):
     logger.info("")
     
     config = {
-        'megacap_allocation': 0.70,
-        'num_megacap': 3,
+        'mag7_allocation': 0.70,
+        'num_mag7': 3,
         'num_momentum': 2,
         'trailing_stop': 0.15,
         'max_portfolio_dd': 0.25,
         'vix_crisis': 35,
-        'num_top_megacaps': 7,
-        'lookback_trading_value': 20,
     }
     
-    strategy = V30Strategy(bot, config=config)
+    strategy = V29Strategy(bot, config=config)
     portfolio_df = strategy.run_backtest(start_year=start_year, end_year=end_year)
     
     metrics = calculate_metrics(portfolio_df, 100000)
@@ -127,11 +124,11 @@ def run_backtest(start_year=2015, end_year=2024):
     logger.info(f"Backtest Period: {start_year}-{end_year}")
     logger.info("")
     logger.info("Results:")
-    logger.info(f"  V30 Annual Return:  {metrics['annual_return']:.1f}%")
-    logger.info(f"  V30 Total Return:   {metrics['total_return']:.1f}%")
-    logger.info(f"  V30 Max Drawdown:   {metrics['max_drawdown']:.1f}%")
-    logger.info(f"  V30 Sharpe Ratio:   {metrics['sharpe']:.2f}")
-    logger.info(f"  V30 Final Value:    ${metrics['final_value']:,.0f}")
+    logger.info(f"  V29 Annual Return:  {metrics['annual_return']:.1f}%")
+    logger.info(f"  V29 Total Return:   {metrics['total_return']:.1f}%")
+    logger.info(f"  V29 Max Drawdown:   {metrics['max_drawdown']:.1f}%")
+    logger.info(f"  V29 Sharpe Ratio:   {metrics['sharpe']:.2f}")
+    logger.info(f"  V29 Final Value:    ${metrics['final_value']:,.0f}")
     logger.info("")
     logger.info(f"  SPY Annual Return:  {spy_metrics['annual_return']:.1f}%")
     logger.info(f"  SPY Max Drawdown:   {spy_metrics['max_drawdown']:.1f}%")
@@ -184,7 +181,7 @@ def save_to_database(portfolio_df, metrics, spy_metrics):
     
     # Insert run
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    run_name = f"V30_DYNAMIC_MEGACAP_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_name = f"V29_MEGACAP_SPLIT_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     alpha = metrics['annual_return'] - spy_metrics['annual_return']
     
     cursor.execute('''
@@ -192,7 +189,7 @@ def save_to_database(portfolio_df, metrics, spy_metrics):
         (run_name, strategy, timestamp, initial_capital, final_value, annual_return, 
          total_return, max_drawdown, sharpe_ratio, spy_annual_return, spy_max_drawdown, alpha)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (run_name, 'V30_DYNAMIC_MEGACAP', timestamp, 100000, float(metrics['final_value']),
+    ''', (run_name, 'V29_MEGACAP_SPLIT', timestamp, 100000, float(metrics['final_value']),
           float(metrics['annual_return']), float(metrics['total_return']), float(metrics['max_drawdown']),
           float(metrics['sharpe']), float(spy_metrics['annual_return']), float(spy_metrics['max_drawdown']), float(alpha)))
     
@@ -216,7 +213,7 @@ def save_to_database(portfolio_df, metrics, spy_metrics):
 
 
 def generate_visualization(portfolio_df, bot, metrics, spy_metrics, start_year, end_year):
-    """Generate V30 performance visualization"""
+    """Generate V29 performance visualization"""
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -228,11 +225,11 @@ def generate_visualization(portfolio_df, bot, metrics, spy_metrics, start_year, 
     spy_norm = spy_period['close'] / spy_period['close'].iloc[0] * 100000
     
     fig, axes = plt.subplots(2, 2, figsize=(16, 10))
-    fig.suptitle(f'V30 Dynamic Mega-Cap Split Strategy ({start_year}-{end_year})', fontsize=16, fontweight='bold')
+    fig.suptitle(f'V29 Mega-Cap Split Strategy ({start_year}-{end_year})', fontsize=16, fontweight='bold')
     
     # 1. Portfolio Growth (Log Scale)
     ax1 = axes[0, 0]
-    ax1.semilogy(portfolio_df.index, portfolio_df['value'], 'b-', linewidth=2, label='V30 Strategy')
+    ax1.semilogy(portfolio_df.index, portfolio_df['value'], 'b-', linewidth=2, label='V29 Strategy')
     ax1.semilogy(spy_norm.index, spy_norm.values, 'gray', linewidth=2, alpha=0.7, label='SPY Buy & Hold')
     ax1.set_title('Portfolio Growth (Log Scale)', fontsize=12)
     ax1.set_ylabel('Value ($)')
@@ -243,7 +240,7 @@ def generate_visualization(portfolio_df, bot, metrics, spy_metrics, start_year, 
     ax2 = axes[0, 1]
     v29_dd = (portfolio_df['value'] - portfolio_df['value'].cummax()) / portfolio_df['value'].cummax() * 100
     spy_dd = (spy_norm - spy_norm.cummax()) / spy_norm.cummax() * 100
-    ax2.fill_between(v29_dd.index, v29_dd.values, 0, alpha=0.5, color='blue', label=f'V30 (Max: {v29_dd.min():.1f}%)')
+    ax2.fill_between(v29_dd.index, v29_dd.values, 0, alpha=0.5, color='blue', label=f'V29 (Max: {v29_dd.min():.1f}%)')
     ax2.fill_between(spy_dd.index, spy_dd.values, 0, alpha=0.3, color='gray', label=f'SPY (Max: {spy_dd.min():.1f}%)')
     ax2.set_title('Drawdown Comparison', fontsize=12)
     ax2.set_ylabel('Drawdown (%)')
@@ -264,7 +261,7 @@ def generate_visualization(portfolio_df, bot, metrics, spy_metrics, start_year, 
         years = common_idx.year
         x = np.arange(len(years))
         width = 0.35
-        ax3.bar(x - width/2, v29_vals.values, width, label='V30', color='blue', alpha=0.7)
+        ax3.bar(x - width/2, v29_vals.values, width, label='V29', color='blue', alpha=0.7)
         ax3.bar(x + width/2, spy_vals.values, width, label='SPY', color='gray', alpha=0.7)
         ax3.set_xticks(x[::2])
         ax3.set_xticklabels(years[::2], rotation=45)
@@ -283,7 +280,7 @@ def generate_visualization(portfolio_df, bot, metrics, spy_metrics, start_year, 
     PERFORMANCE SUMMARY ({start_year}-{end_year})
     {'='*40}
     
-    V30 DYNAMIC MEGA-CAP SPLIT STRATEGY:
+    V29 MEGA-CAP SPLIT STRATEGY:
       Final Value:    ${metrics['final_value']:,.0f}
       Annual Return:  {metrics['annual_return']:.1f}%
       Total Return:   {metrics['total_return']:.1f}%
@@ -318,8 +315,8 @@ def generate_visualization(portfolio_df, bot, metrics, spy_metrics, start_year, 
     plt.savefig(png_path, dpi=150, bbox_inches='tight')
     logger.info(f"Saved: {png_path}")
     
-    # Also save as v30_performance.png
-    v29_path = os.path.join(output_dir, 'v30_performance.png')
+    # Also save as v29_performance.png
+    v29_path = os.path.join(output_dir, 'v29_performance.png')
     plt.savefig(v29_path, dpi=150, bbox_inches='tight')
     logger.info(f"Saved: {v29_path}")
     
@@ -340,7 +337,7 @@ def create_report(portfolio_df, metrics, spy_metrics, start_year, end_year):
     
     with open(report_path, 'w') as f:
         f.write("=" * 70 + "\n")
-        f.write("V30 DYNAMIC MEGA-CAP SPLIT STRATEGY - PERFORMANCE REPORT\n")
+        f.write("V29 MEGA-CAP SPLIT STRATEGY - PERFORMANCE REPORT\n")
         f.write("=" * 70 + "\n\n")
         
         f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -349,7 +346,7 @@ def create_report(portfolio_df, metrics, spy_metrics, start_year, end_year):
         f.write("-" * 70 + "\n")
         f.write("STRATEGY CONFIGURATION\n")
         f.write("-" * 70 + "\n")
-        f.write("  Strategy: V30 Dynamic Mega-Cap Split\n")
+        f.write("  Strategy: V29 Mega-Cap Split\n")
         f.write("  Allocation: 70% Magnificent 7 / 30% Momentum\n")
         f.write("  Mag7 Selection: Top 3 by 20-day momentum\n")
         f.write("  Momentum Selection: Top 2 (excluding Mag7)\n")
@@ -372,7 +369,7 @@ def create_report(portfolio_df, metrics, spy_metrics, start_year, end_year):
         f.write("-" * 70 + "\n")
         f.write("PERFORMANCE RESULTS\n")
         f.write("-" * 70 + "\n")
-        f.write(f"  {'Metric':<25} {'V30':>15} {'SPY':>15} {'Diff':>15}\n")
+        f.write(f"  {'Metric':<25} {'V29':>15} {'SPY':>15} {'Diff':>15}\n")
         f.write(f"  {'-'*25} {'-'*15} {'-'*15} {'-'*15}\n")
         f.write(f"  {'Annual Return':<25} {metrics['annual_return']:>14.1f}% {spy_metrics['annual_return']:>14.1f}% {alpha:>+14.1f}%\n")
         f.write(f"  {'Total Return':<25} {metrics['total_return']:>14.1f}%\n")
@@ -402,7 +399,7 @@ def create_report(portfolio_df, metrics, spy_metrics, start_year, end_year):
 
 def main(start_year=2015, end_year=2024):
     """Main execution function"""
-    log_header("V30 DYNAMIC MEGA-CAP SPLIT STRATEGY - EXECUTION")
+    log_header("V29 MEGA-CAP SPLIT STRATEGY - EXECUTION")
     logger.info(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"Project Root: {project_root}")
     
@@ -423,7 +420,7 @@ def main(start_year=2015, end_year=2024):
         log_header("EXECUTION COMPLETE")
         alpha = metrics['annual_return'] - spy_metrics['annual_return']
         
-        logger.info("V30 Dynamic Mega-Cap Split Strategy executed successfully\!")
+        logger.info("V29 Mega-Cap Split Strategy executed successfully\!")
         logger.info("")
         logger.info("Outputs:")
         logger.info(f"  Database:      output/data/trading_results.db (Run ID: {run_id})")
@@ -431,7 +428,7 @@ def main(start_year=2015, end_year=2024):
         logger.info(f"  Report:        {report_path}")
         logger.info(f"  Logs:          output/logs/execution.log")
         logger.info("")
-        logger.info(f"Strategy: V30 DYNAMIC MEGA-CAP SPLIT")
+        logger.info(f"Strategy: V29 MEGA-CAP SPLIT")
         logger.info(f"Period:   {start_year}-{end_year}")
         logger.info("")
         logger.info("Performance:")
@@ -454,7 +451,7 @@ def main(start_year=2015, end_year=2024):
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='Run V30 Dynamic Mega-Cap Split Strategy')
+    parser = argparse.ArgumentParser(description='Run V29 Mega-Cap Split Strategy')
     parser.add_argument('--start', type=int, default=2015, help='Start year (default: 2015)')
     parser.add_argument('--end', type=int, default=2024, help='End year (default: 2024)')
     args = parser.parse_args()

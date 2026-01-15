@@ -2,6 +2,8 @@
 Interactive Trading Visualization with Bokeh - Multi-Tab Dashboard
 Tab 1: Trading Analysis (entry/exit, holdings)
 Tab 2: Principal Investment Performance (PnL, returns, drawdown)
+
+Updated for V30 Dynamic Mega-Cap Split Strategy
 """
 
 import pandas as pd
@@ -14,6 +16,8 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from src.backtest.portfolio_bot_demo import PortfolioRotationBot
+from src.strategies.v29_mega_cap_split import V29Strategy
+from src.strategies.v30_dynamic_megacap import V30Strategy
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -151,6 +155,466 @@ def run_v22_backtest(bot):
     return portfolio_df
 
 
+
+
+def track_trades_v29(bot, start_year=2015, end_year=2024):
+    """
+    Track all trades during V29 Mega-Cap Split backtest
+    
+    V29 Strategy:
+    - 70% allocation to Top 3 Magnificent 7 (by momentum)
+    - 30% allocation to Top 2 Momentum stocks
+    - VIX-based cash reserves
+    - 15% trailing stop losses
+    """
+    
+    # Magnificent 7 stocks
+    MAG7 = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'AMZN', 'TSLA']
+    
+    # Configuration
+    config = {
+        'mag7_allocation': 0.70,
+        'num_mag7': 3,
+        'num_momentum': 2,
+        'trailing_stop': 0.15,
+    }
+    
+    first_ticker = list(bot.stocks_data.keys())[0]
+    all_dates = bot.stocks_data[first_ticker].index
+    all_dates = all_dates[(all_dates >= f'{start_year}-01-01') & (all_dates <= f'{end_year}-12-31')]
+    
+    cash = bot.initial_capital
+    holdings = {}  # {ticker: {'shares': float, 'entry_price': float, 'peak_price': float}}
+    trades = []
+    last_rebalance = None
+    
+    for date in all_dates:
+        # Check trailing stops first
+        for ticker in list(holdings.keys()):
+            df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+            if len(df_at_date) > 0:
+                current_price = df_at_date.iloc[-1]['close']
+                holdings[ticker]['peak_price'] = max(holdings[ticker]['peak_price'], current_price)
+                
+                # Check trailing stop (15% from peak)
+                stop_price = holdings[ticker]['peak_price'] * (1 - config['trailing_stop'])
+                if current_price < stop_price:
+                    # Sell due to trailing stop
+                    shares = holdings[ticker]['shares']
+                    value = shares * current_price
+                    cash += value
+                    
+                    trades.append({
+                        'date': date,
+                        'ticker': ticker,
+                        'action': 'SELL',
+                        'price': current_price,
+                        'shares': shares,
+                        'value': value,
+                        'reason': 'TRAILING_STOP'
+                    })
+                    del holdings[ticker]
+        
+        # Monthly rebalancing (day 7-15)
+        is_rebalance = (
+            last_rebalance is None or
+            ((date.year, date.month) != (last_rebalance.year, last_rebalance.month) and 7 <= date.day <= 15)
+        )
+        
+        if is_rebalance:
+            last_rebalance = date
+            
+            # Sell all holdings
+            for ticker in list(holdings.keys()):
+                df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                if len(df_at_date) > 0:
+                    price = df_at_date.iloc[-1]['close']
+                    shares = holdings[ticker]['shares']
+                    value = shares * price
+                    cash += value
+                    
+                    trades.append({
+                        'date': date,
+                        'ticker': ticker,
+                        'action': 'SELL',
+                        'price': price,
+                        'shares': shares,
+                        'value': value,
+                        'reason': 'REBALANCE'
+                    })
+            holdings = {}
+            
+            # Get VIX for cash reserve calculation
+            vix = 20
+            if bot.vix_data is not None:
+                vix_at_date = bot.vix_data[bot.vix_data.index <= date]
+                if len(vix_at_date) > 0:
+                    vix = vix_at_date.iloc[-1]['close']
+            
+            # VIX-based cash reserve
+            if vix < 15:
+                cash_reserve = 0.05
+            elif vix < 20:
+                cash_reserve = 0.10
+            elif vix < 25:
+                cash_reserve = 0.20
+            elif vix < 30:
+                cash_reserve = 0.35
+            elif vix < 40:
+                cash_reserve = 0.50
+            else:
+                cash_reserve = 0.70
+            
+            # Determine regime
+            if cash_reserve <= 0.10:
+                regime = 'BULLISH'
+            elif cash_reserve <= 0.35:
+                regime = 'NEUTRAL'
+            else:
+                regime = 'BEARISH'
+            
+            invest_amount = cash * (1 - cash_reserve)
+            
+            # Score Magnificent 7 stocks by momentum
+            mag7_scores = {}
+            for ticker in MAG7:
+                if ticker in bot.stocks_data:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) >= 20:
+                        mom20 = (df_at_date['close'].iloc[-1] / df_at_date['close'].iloc[-20] - 1) * 100
+                        mag7_scores[ticker] = mom20
+            
+            # Get top 3 Mag7 by momentum
+            top_mag7 = sorted(mag7_scores.items(), key=lambda x: x[1], reverse=True)[:config['num_mag7']]
+            
+            # Score other stocks for momentum selection
+            momentum_scores = {}
+            for ticker, df in bot.stocks_data.items():
+                if ticker in MAG7:
+                    continue
+                df_at_date = df[df.index <= date]
+                if len(df_at_date) >= 100:
+                    try:
+                        score = bot.score_stock(ticker, df_at_date)
+                        momentum_scores[ticker] = score
+                    except:
+                        pass
+            
+            # Get top 2 momentum stocks
+            top_momentum = sorted(momentum_scores.items(), key=lambda x: x[1], reverse=True)[:config['num_momentum']]
+            
+            # Allocate 70% to Mag7, 30% to momentum
+            mag7_amount = invest_amount * config['mag7_allocation']
+            momentum_amount = invest_amount * (1 - config['mag7_allocation'])
+            
+            # Buy Mag7 stocks (equal weight within allocation)
+            if top_mag7:
+                per_mag7 = mag7_amount / len(top_mag7)
+                for ticker, score in top_mag7:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        shares = per_mag7 / price
+                        holdings[ticker] = {
+                            'shares': shares,
+                            'entry_price': price,
+                            'peak_price': price
+                        }
+                        cash -= per_mag7
+                        
+                        trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'BUY',
+                            'price': price,
+                            'shares': shares,
+                            'value': per_mag7,
+                            'score': score,
+                            'category': 'MAG7'
+                        })
+            
+            # Buy momentum stocks (equal weight within allocation)
+            if top_momentum:
+                per_mom = momentum_amount / len(top_momentum)
+                for ticker, score in top_momentum:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        shares = per_mom / price
+                        holdings[ticker] = {
+                            'shares': shares,
+                            'entry_price': price,
+                            'peak_price': price
+                        }
+                        cash -= per_mom
+                        
+                        trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'BUY',
+                            'price': price,
+                            'shares': shares,
+                            'value': per_mom,
+                            'score': score,
+                            'category': 'MOMENTUM'
+                        })
+            
+            # Record portfolio state
+            trades.append({
+                'date': date,
+                'ticker': 'PORTFOLIO',
+                'action': 'HOLDINGS',
+                'holdings': list(holdings.keys()),
+                'cash': cash,
+                'cash_reserve': cash_reserve,
+                'market_regime': regime,
+                'vix': vix
+            })
+    
+    return trades
+
+
+
+
+
+def track_trades_v30(bot, start_year=2015, end_year=2024):
+    """
+    Track all trades during V30 Dynamic Mega-Cap Split backtest
+    
+    V30 Strategy:
+    - Dynamically identifies top 7 mega-caps using trading value
+    - 70% allocation to Top 3 Dynamic Mega-Caps (by momentum)
+    - 30% allocation to Top 2 Momentum stocks (non mega-caps)
+    - VIX-based cash reserves
+    - 15% trailing stop losses
+    """
+    
+    # Configuration
+    config = {
+        'megacap_allocation': 0.70,
+        'num_megacap': 3,
+        'num_momentum': 2,
+        'trailing_stop': 0.15,
+        'num_top_megacaps': 7,
+        'lookback_trading_value': 20,
+    }
+    
+    first_ticker = list(bot.stocks_data.keys())[0]
+    all_dates = bot.stocks_data[first_ticker].index
+    all_dates = all_dates[(all_dates >= f'{start_year}-01-01') & (all_dates <= f'{end_year}-12-31')]
+    
+    cash = bot.initial_capital
+    holdings = {}
+    trades = []
+    last_rebalance = None
+    
+    def identify_megacaps(date):
+        """Identify mega-caps using trading value"""
+        ETF_EXCLUSIONS = {'SPY', 'SPY 2', 'QQQ', 'IVV', 'VOO', 'VTI', 'DIA', 'IWM', 'EFA', 'EEM'}
+        lookback = config['lookback_trading_value']
+        trading_values = {}
+        for ticker, df in bot.stocks_data.items():
+            if ticker in ETF_EXCLUSIONS:
+                continue
+            df_at_date = df[df.index <= date]
+            if len(df_at_date) >= lookback:
+                recent = df_at_date.tail(lookback)
+                avg_trading_value = (recent['close'] * recent['volume']).mean()
+                trading_values[ticker] = avg_trading_value
+        sorted_stocks = sorted(trading_values.items(), key=lambda x: x[1], reverse=True)
+        return [ticker for ticker, _ in sorted_stocks[:config['num_top_megacaps']]]
+    
+    for date in all_dates:
+        # Check trailing stops
+        for ticker in list(holdings.keys()):
+            df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+            if len(df_at_date) > 0:
+                current_price = df_at_date.iloc[-1]['close']
+                holdings[ticker]['peak_price'] = max(holdings[ticker]['peak_price'], current_price)
+                
+                # Check trailing stop (15% from peak)
+                stop_price = holdings[ticker]['peak_price'] * (1 - config['trailing_stop'])
+                if current_price < stop_price:
+                    # Sell due to trailing stop
+                    shares = holdings[ticker]['shares']
+                    value = shares * current_price
+                    cash += value
+                    
+                    trades.append({
+                        'date': date,
+                        'ticker': ticker,
+                        'action': 'SELL',
+                        'price': current_price,
+                        'shares': shares,
+                        'value': value,
+                        'reason': 'TRAILING_STOP'
+                    })
+                    del holdings[ticker]
+        
+        # Monthly rebalancing (day 7-15)
+        is_rebalance = (
+            last_rebalance is None or
+            ((date.year, date.month) != (last_rebalance.year, last_rebalance.month) and 7 <= date.day <= 15)
+        )
+        
+        if is_rebalance:
+            last_rebalance = date
+            
+            # Sell all holdings
+            for ticker in list(holdings.keys()):
+                df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                if len(df_at_date) > 0:
+                    price = df_at_date.iloc[-1]['close']
+                    shares = holdings[ticker]['shares']
+                    value = shares * price
+                    cash += value
+                    
+                    trades.append({
+                        'date': date,
+                        'ticker': ticker,
+                        'action': 'SELL',
+                        'price': price,
+                        'shares': shares,
+                        'value': value,
+                        'reason': 'REBALANCE'
+                    })
+            holdings = {}
+            
+            # Get VIX for cash reserve calculation
+            vix = 20
+            if bot.vix_data is not None:
+                vix_at_date = bot.vix_data[bot.vix_data.index <= date]
+                if len(vix_at_date) > 0:
+                    vix = vix_at_date.iloc[-1]['close']
+            
+            # VIX-based cash reserve
+            if vix < 15:
+                cash_reserve = 0.05
+            elif vix < 20:
+                cash_reserve = 0.10
+            elif vix < 25:
+                cash_reserve = 0.20
+            elif vix < 30:
+                cash_reserve = 0.35
+            elif vix < 40:
+                cash_reserve = 0.50
+            else:
+                cash_reserve = 0.70
+            
+            # Determine regime
+            if cash_reserve <= 0.10:
+                regime = 'BULLISH'
+            elif cash_reserve <= 0.35:
+                regime = 'NEUTRAL'
+            else:
+                regime = 'BEARISH'
+            
+            invest_amount = cash * (1 - cash_reserve)
+            
+            # DYNAMIC MEGA-CAP IDENTIFICATION
+            megacaps = identify_megacaps(date)
+            
+            # Score mega-cap stocks by momentum
+            megacap_scores = {}
+            for ticker in megacaps:
+                if ticker in bot.stocks_data:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) >= 20:
+                        mom20 = (df_at_date['close'].iloc[-1] / df_at_date['close'].iloc[-20] - 1) * 100
+                        megacap_scores[ticker] = mom20
+            
+            # Get top 3 mega-caps by momentum
+            top_megacaps = sorted(megacap_scores.items(), key=lambda x: x[1], reverse=True)[:config['num_megacap']]
+            
+            # Score other stocks for momentum selection
+            momentum_scores = {}
+            for ticker, df in bot.stocks_data.items():
+                if ticker in megacaps:
+                    continue
+                df_at_date = df[df.index <= date]
+                if len(df_at_date) >= 100:
+                    try:
+                        score = bot.score_stock(ticker, df_at_date)
+                        momentum_scores[ticker] = score
+                    except:
+                        pass
+            
+            # Get top 2 momentum stocks
+            top_momentum = sorted(momentum_scores.items(), key=lambda x: x[1], reverse=True)[:config['num_momentum']]
+            
+            # Allocate 70% to mega-caps, 30% to momentum
+            megacap_amount = invest_amount * config['megacap_allocation']
+            momentum_amount = invest_amount * (1 - config['megacap_allocation'])
+            
+            # Buy mega-cap stocks (equal weight within allocation)
+            if top_megacaps:
+                per_megacap = megacap_amount / len(top_megacaps)
+                for ticker, score in top_megacaps:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        shares = per_megacap / price
+                        holdings[ticker] = {
+                            'shares': shares,
+                            'entry_price': price,
+                            'peak_price': price
+                        }
+                        cash -= per_megacap
+                        
+                        trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'BUY',
+                            'price': price,
+                            'shares': shares,
+                            'value': per_megacap,
+                            'score': score,
+                            'category': 'MEGACAP'
+                        })
+            
+            # Buy momentum stocks (equal weight within allocation)
+            if top_momentum:
+                per_mom = momentum_amount / len(top_momentum)
+                for ticker, score in top_momentum:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        shares = per_mom / price
+                        holdings[ticker] = {
+                            'shares': shares,
+                            'entry_price': price,
+                            'peak_price': price
+                        }
+                        cash -= per_mom
+                        
+                        trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'BUY',
+                            'price': price,
+                            'shares': shares,
+                            'value': per_mom,
+                            'score': score,
+                            'category': 'MOMENTUM'
+                        })
+            
+            # Record portfolio state
+            trades.append({
+                'date': date,
+                'ticker': 'PORTFOLIO',
+                'action': 'HOLDINGS',
+                'holdings': list(holdings.keys()),
+                'cash': cash,
+                'cash_reserve': cash_reserve,
+                'market_regime': regime,
+                'vix': vix,
+                'megacaps': megacaps[:3]  # Top 3 identified mega-caps
+            })
+    
+    return trades
+
+
+
 def create_trade_visualizations():
     """Create comprehensive multi-tab trading visualizations"""
 
@@ -168,20 +632,20 @@ def create_trade_visualizations():
     # Get latest run
     latest_run = pd.read_sql_query("""
         SELECT * FROM backtest_runs
-        ORDER BY run_id DESC LIMIT 1
+        ORDER BY id DESC LIMIT 1
     """, conn)
 
-    run_id = latest_run['run_id'].iloc[0]
+    run_id = latest_run['id'].iloc[0]
     initial_capital = latest_run['initial_capital'].iloc[0]
 
     logger.info(f"\nLoading data from database:")
     logger.info(f"  Run ID: {run_id}")
-    logger.info(f"  Strategy: {latest_run['strategy_type'].iloc[0]}")
+    logger.info(f"  Strategy: {latest_run['strategy'].iloc[0]}")
     logger.info(f"  Annual Return: {latest_run['annual_return'].iloc[0]:.1f}%")
 
     # Load portfolio values
     portfolio_df = pd.read_sql_query(f"""
-        SELECT date, portfolio_value as value
+        SELECT date, value
         FROM portfolio_values
         WHERE run_id = {run_id}
         ORDER BY date
@@ -194,11 +658,11 @@ def create_trade_visualizations():
 
     # For Tab 1 (trading analysis), we still need to run a minimal backtest to get trade logs
     # But we use the portfolio_df from database for Tab 2 (performance charts)
-    data_dir = os.path.join(script_dir, '..', '..', 'sp500_data', 'stock_data_1963_1983_top500')
+    data_dir = os.path.join(script_dir, '..', '..', 'sp500_data', 'stock_data_1990_2024_top500')
     bot = PortfolioRotationBot(data_dir=data_dir, initial_capital=initial_capital)
     bot.prepare_data()
     bot.score_all_stocks()
-    trades_log = track_trades_with_adaptive_regime(bot, top_n=5)
+    trades_log = track_trades_v30(bot, start_year=2015, end_year=2024)
     
     # Create output file
     output_path = os.path.join(script_dir, "trading_analysis.html")
@@ -734,10 +1198,10 @@ def create_stock_selector_tab(bot, trades_log):
         p_indicator.yaxis.axis_label = y_label;
 
         // Update y-axis range
-        if (y_min !== null && y_max !== null) {
+        if (y_min != null && y_max != null) {
             p_indicator.y_range.start = y_min;
             p_indicator.y_range.end = y_max;
-        } else if (y_min !== null) {
+        } else if (y_min != null) {
             p_indicator.y_range.start = y_min;
             p_indicator.y_range.end = Math.max(...indicator_data) * 1.1;
         } else {
@@ -848,10 +1312,10 @@ def create_stock_selector_tab(bot, trades_log):
         p_indicator.yaxis.axis_label = y_label;
 
         // Update y-axis range
-        if (y_min !== null && y_max !== null) {
+        if (y_min != null && y_max != null) {
             p_indicator.y_range.start = y_min;
             p_indicator.y_range.end = y_max;
-        } else if (y_min !== null) {
+        } else if (y_min != null) {
             p_indicator.y_range.start = y_min;
             p_indicator.y_range.end = Math.max(...indicator_data) * 1.1;
         } else {
@@ -1391,7 +1855,7 @@ def create_metrics_summary(metrics, portfolio_df):
     end_date = portfolio_df.index[-1].strftime('%Y-%m-%d')
     win_rate = metrics['winning_months']/(metrics['winning_months']+metrics['losing_months'])*100
     
-    goal_status = 'GOAL ACHIEVED\!' if metrics['annual_return'] >= 20 else 'BELOW TARGET'
+    goal_status = 'GOAL ACHIEVED!' if metrics['annual_return'] >= 20 else 'BELOW TARGET'
     goal_color = '#d4edda' if metrics['annual_return'] >= 20 else '#f8d7da'
     border_color = '#28a745' if metrics['annual_return'] >= 20 else '#dc3545'
     emoji = '🎯' if metrics['annual_return'] >= 20 else '⚠️'
