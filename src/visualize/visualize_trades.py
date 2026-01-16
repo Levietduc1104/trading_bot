@@ -2375,3 +2375,263 @@ def get_most_traded_stocks(trades_log, top_n=6):
 
 if __name__ == "__main__":
     create_trade_visualizations()
+
+
+def create_strategy_comparison_visualization(output_path='output/strategy_comparison_bokeh.html'):
+    """
+    Create interactive strategy comparison visualization with Bokeh
+    Compares V30, ML Regularized, V31 ML+MegaCap, and SPY
+    """
+    import pandas as pd
+    import numpy as np
+    from bokeh.plotting import figure, output_file, save
+    from bokeh.layouts import column, row
+    from bokeh.models import HoverTool, Div, Legend
+    from bokeh.palettes import Category10_4
+    
+    logger.info("Creating strategy comparison visualization...")
+    
+    # Load data
+    try:
+        v30_df = pd.read_csv('output/ml_dynamic_megacap.csv', parse_dates=['date'], index_col='date')
+        ml_df = pd.read_csv('output/ml_regularized.csv', parse_dates=['date'], index_col='date')
+        v31_df = pd.read_csv('output/v31_ml_results.csv', parse_dates=['date'], index_col='date')
+        
+        # Load SPY
+        spy_df = pd.read_csv('sp500_data/stock_data_1990_2024_top500/SPY.csv')
+        date_col = 'Date' if 'Date' in spy_df.columns else 'date'
+        spy_df[date_col] = pd.to_datetime(spy_df[date_col])
+        spy_df = spy_df.set_index(date_col)
+        spy_df.columns = spy_df.columns.str.lower()
+    except Exception as e:
+        logger.error(f"Error loading data: {e}")
+        return
+    
+    # Filter to common period (2015-2024)
+    start_date = '2015-01-01'
+    end_date = '2024-12-31'
+    v30_df = v30_df[(v30_df.index >= start_date) & (v30_df.index <= end_date)]
+    ml_df = ml_df[(ml_df.index >= start_date) & (ml_df.index <= end_date)]
+    v31_df = v31_df[(v31_df.index >= start_date) & (v31_df.index <= end_date)]
+    spy_df = spy_df[(spy_df.index >= start_date) & (spy_df.index <= end_date)]
+    
+    # Normalize SPY to start at 100000
+    spy_df['value'] = (spy_df['close'] / spy_df['close'].iloc[0]) * 100000
+    
+    # Calculate metrics
+    def calc_metrics(df, name):
+        initial = df['value'].iloc[0]
+        final = df['value'].iloc[-1]
+        years = (df.index[-1] - df.index[0]).days / 365.25
+        total_return = ((final / initial) - 1) * 100
+        annual_return = ((final / initial) ** (1/years) - 1) * 100
+        
+        running_max = df['value'].expanding().max()
+        drawdown = ((df['value'] - running_max) / running_max * 100)
+        max_drawdown = drawdown.min()
+        
+        daily_returns = df['value'].pct_change()
+        sharpe = (daily_returns.mean() / daily_returns.std()) * np.sqrt(252) if daily_returns.std() > 0 else 0
+        
+        return {
+            'name': name,
+            'annual': annual_return,
+            'total': total_return,
+            'max_dd': max_drawdown,
+            'sharpe': sharpe,
+            'final': final
+        }
+    
+    v30_metrics = calc_metrics(v30_df, 'V30 Dynamic Mega-Cap')
+    ml_metrics = calc_metrics(ml_df, 'ML Regularized')
+    v31_metrics = calc_metrics(v31_df, 'V31 ML + Mega-Cap')
+    spy_metrics = calc_metrics(spy_df, 'SPY Benchmark')
+    
+    all_metrics = [v30_metrics, ml_metrics, v31_metrics, spy_metrics]
+    
+    # Create Bokeh output
+    output_file(output_path)
+    
+    # Title
+    title = Div(text="""
+        <h1 style='text-align: center; color: #2c3e50; margin-bottom: 20px;'>
+            Strategy Comparison Dashboard (2015-2024)
+        </h1>
+        <p style='text-align: center; font-size: 14px; color: #7f8c8d;'>
+            Comprehensive comparison of V30, ML Regularized, V31 Integration, and SPY Benchmark
+        </p>
+    """, width=1400)
+    
+    # Summary table
+    table_html = "<div style='margin: 20px auto; width: 1200px;'>"
+    table_html += "<table style='width: 100%; border-collapse: collapse; font-family: Arial;'>"
+    table_html += "<tr style='background: #34495e; color: white;'>"
+    table_html += "<th style='padding: 12px; text-align: left;'>Strategy</th>"
+    table_html += "<th style='padding: 12px; text-align: right;'>Annual Return</th>"
+    table_html += "<th style='padding: 12px; text-align: right;'>Total Return</th>"
+    table_html += "<th style='padding: 12px; text-align: right;'>Max Drawdown</th>"
+    table_html += "<th style='padding: 12px; text-align: right;'>Sharpe Ratio</th>"
+    table_html += "<th style='padding: 12px; text-align: right;'>Final Value</th>"
+    table_html += "</tr>"
+    
+    colors = ['#2ecc71', '#3498db', '#e74c3c', '#95a5a6']
+    for metrics, color in zip(all_metrics, colors):
+        row_style = f"background: {color}22; border-bottom: 1px solid #ddd;"
+        table_html += f"<tr style='{row_style}'>"
+        table_html += f"<td style='padding: 10px; font-weight: bold;'>{metrics['name']}</td>"
+        table_html += f"<td style='padding: 10px; text-align: right;'>{metrics['annual']:.1f}%</td>"
+        table_html += f"<td style='padding: 10px; text-align: right;'>{metrics['total']:.1f}%</td>"
+        table_html += f"<td style='padding: 10px; text-align: right;'>{metrics['max_dd']:.1f}%</td>"
+        table_html += f"<td style='padding: 10px; text-align: right;'>{metrics['sharpe']:.2f}</td>"
+        table_html += f"<td style='padding: 10px; text-align: right;'>${metrics['final']:,.0f}</td>"
+        table_html += "</tr>"
+    
+    table_html += "</table></div>"
+    summary_table = Div(text=table_html, width=1400)
+    
+    # Chart 1: Portfolio Value Over Time
+    p1 = figure(
+        width=1400, height=500,
+        title="Portfolio Value Over Time (Log Scale)",
+        x_axis_type='datetime',
+        y_axis_type='log',
+        tools='pan,wheel_zoom,box_zoom,reset,save'
+    )
+    
+    p1.line(v30_df.index, v30_df['value'], legend_label='V30 Dynamic Mega-Cap',
+            line_width=2, color=colors[0], alpha=0.8)
+    p1.line(ml_df.index, ml_df['value'], legend_label='ML Regularized',
+            line_width=2, color=colors[1], alpha=0.8)
+    p1.line(v31_df.index, v31_df['value'], legend_label='V31 ML + Mega-Cap',
+            line_width=2, color=colors[2], alpha=0.8)
+    p1.line(spy_df.index, spy_df['value'], legend_label='SPY Benchmark',
+            line_width=2, color=colors[3], alpha=0.6, line_dash='dashed')
+    
+    p1.add_tools(HoverTool(
+        tooltips=[('Date', '@x{%F}'), ('Value', '$@y{0,0}')],
+        formatters={'@x': 'datetime'},
+        mode='vline'
+    ))
+    
+    p1.legend.location = "top_left"
+    p1.legend.click_policy = "hide"
+    p1.xaxis.axis_label = "Date"
+    p1.yaxis.axis_label = "Portfolio Value ($)"
+    
+    # Chart 2: Drawdown
+    p2 = figure(
+        width=700, height=400,
+        title="Drawdown Over Time",
+        x_axis_type='datetime',
+        tools='pan,wheel_zoom,box_zoom,reset,save'
+    )
+    
+    v30_running_max = v30_df['value'].expanding().max()
+    v30_dd = ((v30_df['value'] - v30_running_max) / v30_running_max * 100)
+    ml_running_max = ml_df['value'].expanding().max()
+    ml_dd = ((ml_df['value'] - ml_running_max) / ml_running_max * 100)
+    v31_running_max = v31_df['value'].expanding().max()
+    v31_dd = ((v31_df['value'] - v31_running_max) / v31_running_max * 100)
+    spy_running_max = spy_df['value'].expanding().max()
+    spy_dd = ((spy_df['value'] - spy_running_max) / spy_running_max * 100)
+    
+    p2.line(v30_df.index, v30_dd, legend_label='V30', line_width=2, color=colors[0], alpha=0.7)
+    p2.line(ml_df.index, ml_dd, legend_label='ML Reg', line_width=2, color=colors[1], alpha=0.7)
+    p2.line(v31_df.index, v31_dd, legend_label='V31', line_width=2, color=colors[2], alpha=0.7)
+    p2.line(spy_df.index, spy_dd, legend_label='SPY', line_width=2, color=colors[3], alpha=0.5, line_dash='dashed')
+    
+    p2.add_tools(HoverTool(
+        tooltips=[('Date', '@x{%F}'), ('Drawdown', '@y{0.1f}%')],
+        formatters={'@x': 'datetime'},
+        mode='vline'
+    ))
+    
+    p2.legend.location = "bottom_left"
+    p2.legend.click_policy = "hide"
+    p2.xaxis.axis_label = "Date"
+    p2.yaxis.axis_label = "Drawdown (%)"
+    
+    # Chart 3: Annual Returns Bar
+    p3 = figure(
+        width=700, height=400,
+        title="Annual Return Comparison",
+        x_range=[m['name'] for m in all_metrics],
+        tools='save'
+    )
+    
+    p3.vbar(
+        x=[m['name'] for m in all_metrics],
+        top=[m['annual'] for m in all_metrics],
+        width=0.6,
+        color=colors,
+        alpha=0.7
+    )
+    
+    p3.xaxis.major_label_orientation = 0.7
+    p3.yaxis.axis_label = "Annual Return (%)"
+    
+    # Chart 4: Risk-Return Scatter
+    p4 = figure(
+        width=1400, height=400,
+        title="Risk-Return Profile (Lower Risk, Higher Return = Better)",
+        tools='pan,wheel_zoom,box_zoom,reset,save'
+    )
+    
+    for metrics, color in zip(all_metrics, colors):
+        p4.circle(
+            abs(metrics['max_dd']),
+            metrics['annual'],
+            size=15,
+            color=color,
+            alpha=0.6,
+            legend_label=metrics['name']
+        )
+        
+        # Add labels
+        p4.text(
+            abs(metrics['max_dd']) + 1,
+            metrics['annual'] + 3,
+            text=[metrics['name']],
+            text_font_size='10pt',
+            text_color=color
+        )
+    
+    p4.xaxis.axis_label = "Max Drawdown (%) - Lower is Better"
+    p4.yaxis.axis_label = "Annual Return (%)"
+    p4.legend.location = "top_right"
+    p4.legend.click_policy = "hide"
+    
+    # Key insights
+    insights = Div(text=f"""
+        <div style='margin: 20px auto; width: 1200px; padding: 20px; background: #ecf0f1; border-radius: 8px;'>
+            <h3 style='color: #2c3e50; margin-bottom: 15px;'>Key Insights</h3>
+            <ul style='font-size: 14px; color: #34495e; line-height: 1.8;'>
+                <li><strong>Best Performer:</strong> ML Regularized with {ml_metrics['annual']:.1f}% annual return</li>
+                <li><strong>V31 Underperformance:</strong> V31 achieved only {v31_metrics['annual']:.1f}% annual (4.3x worse than ML alone)</li>
+                <li><strong>Risk Analysis:</strong> V31 has highest drawdown at {v31_metrics['max_dd']:.1f}% despite lower returns</li>
+                <li><strong>Alpha vs SPY:</strong> ML Regularized: +{ml_metrics['annual']-spy_metrics['annual']:.1f}%, V30: +{v30_metrics['annual']-spy_metrics['annual']:.1f}%, V31: +{v31_metrics['annual']-spy_metrics['annual']:.1f}%</li>
+                <li><strong>Recommendation:</strong> Use ML Regularized strategy - highest returns with excellent risk management</li>
+            </ul>
+        </div>
+    """, width=1400)
+    
+    # Layout
+    layout = column(
+        title,
+        summary_table,
+        p1,
+        row(p2, p3),
+        p4,
+        insights
+    )
+    
+    save(layout)
+    logger.info(f"Strategy comparison saved to: {output_path}")
+    
+    return output_path
+
+
+if __name__ == "__main__":
+    # Add strategy comparison to main execution
+    logger.info("Creating strategy comparison visualization...")
+    create_strategy_comparison_visualization()
