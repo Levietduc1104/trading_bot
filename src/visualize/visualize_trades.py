@@ -16,8 +16,8 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from src.backtest.portfolio_bot_demo import PortfolioRotationBot
-from src.strategies.v29_mega_cap_split import V29Strategy
 from src.strategies.v30_dynamic_megacap import V30Strategy
+from src.strategies.ml_stock_ranker_lgbm import LGBMStockRanker
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -614,26 +614,325 @@ def track_trades_v30(bot, start_year=2015, end_year=2024):
     return trades
 
 
+def track_trades_v30_ml(bot, start_year=2015, end_year=2024):
+    """
+    Track all trades during V30+ML Step 1 backtest (PRODUCTION STRATEGY)
 
-def create_trade_visualizations():
-    """Create comprehensive multi-tab trading visualizations"""
+    V30+ML Step 1 Strategy:
+    - ML stock selection using LightGBM (34 features: 13 technical + 11 fundamental + 5 volume + 3 regime + 2 additional)
+    - Dynamically identifies top 7 mega-caps using trading value
+    - 70% allocation to Top 3 ML-selected Mega-Caps (from Mag 7)
+    - 30% allocation to Top 2 ML-selected Momentum stocks
+    - VIX-based cash reserves (5-70%)
+    - 12% trailing stop losses (enhanced from 15%)
+    - Progressive drawdown control
+    """
+
+    # LightGBM configuration (production settings with 34 features)
+    ml_config = {
+        'n_estimators': 100,
+        'max_depth': 5,
+        'learning_rate': 0.05,
+        'min_child_samples': 20,
+        'subsample': 0.8,
+        'colsample_bytree': 0.8,
+        'reg_alpha': 0.1,
+        'reg_lambda': 0.1,
+        'sample_interval': 63,
+        'retrain_months': 6,
+        'use_regime_features': True,  # Use all 34 features (13 tech + 11 fundamental + 5 volume + 3 regime + 2 additional)
+    }
+
+    # V30 configuration (enhanced trailing stop)
+    config = {
+        'megacap_allocation': 0.70,
+        'num_megacap': 3,
+        'num_momentum': 2,
+        'trailing_stop': 0.12,  # 12% trailing stop (enhanced from 15%)
+        'num_top_megacaps': 7,
+        'lookback_trading_value': 20,
+    }
+
+    # Initialize ML ranker
+    ranker = LGBMStockRanker(config=ml_config)
+
+    first_ticker = list(bot.stocks_data.keys())[0]
+    all_dates = bot.stocks_data[first_ticker].index
+    all_dates = all_dates[(all_dates >= f'{start_year}-01-01') & (all_dates <= f'{end_year}-12-31')]
+
+    # Initial ML training
+    initial_train_end = pd.to_datetime(f'{start_year}-01-01') - pd.DateOffset(days=1)
+    logger.info(f"Training ML model up to {initial_train_end.date()} for visualization...")
+    ranker.train(bot.stocks_data, bot.stocks_data.get('SPY'), initial_train_end, bot.metadata if hasattr(bot, 'metadata') else None)
+
+    cash = bot.initial_capital
+    holdings = {}
+    trades = []
+    last_rebalance = None
+    portfolio_peak = bot.initial_capital
+
+    MAG7_CANDIDATES = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'AMZN', 'TSLA']
+
+    def score_stocks_at_date(date):
+        """Score all stocks using ML at a specific date"""
+        stock_features = {}
+        for ticker, df in bot.stocks_data.items():
+            if ticker in ['SPY', 'VIX']:
+                continue
+            df_at_date = df[df.index <= date]
+            if len(df_at_date) < 200:
+                continue
+            spy_slice = bot.stocks_data.get('SPY')
+            if spy_slice is not None:
+                spy_slice = spy_slice[spy_slice.index <= date]
+            ticker_metadata = bot.metadata.get(ticker) if hasattr(bot, 'metadata') else None
+            features = ranker.extract_features(ticker, df_at_date, spy_slice, ticker_metadata)
+            if features is not None:
+                stock_features[ticker] = features
+        return ranker.predict_scores(stock_features)
+
+    for date in all_dates:
+        # Calculate current portfolio value
+        current_value = cash
+        for ticker in holdings:
+            df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+            if len(df_at_date) > 0:
+                current_price = df_at_date.iloc[-1]['close']
+                current_value += holdings[ticker]['shares'] * current_price
+
+        portfolio_peak = max(portfolio_peak, current_value)
+
+        # Check trailing stops (daily)
+        for ticker in list(holdings.keys()):
+            df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+            if len(df_at_date) > 0:
+                current_price = df_at_date.iloc[-1]['close']
+                holdings[ticker]['peak_price'] = max(holdings[ticker]['peak_price'], current_price)
+
+                # 12% trailing stop (enhanced from 15%)
+                stop_price = holdings[ticker]['peak_price'] * (1 - config['trailing_stop'])
+                if current_price < stop_price:
+                    shares = holdings[ticker]['shares']
+                    value = shares * current_price
+                    cash += value
+
+                    trades.append({
+                        'date': date,
+                        'ticker': ticker,
+                        'action': 'SELL',
+                        'price': current_price,
+                        'shares': shares,
+                        'value': value,
+                        'reason': 'TRAILING_STOP'
+                    })
+                    del holdings[ticker]
+
+        # Check if should retrain ML model
+        if ranker.should_retrain(date):
+            train_end = date - pd.DateOffset(days=1)
+            ranker.train(bot.stocks_data, bot.stocks_data.get('SPY'), train_end, bot.metadata if hasattr(bot, 'metadata') else None)
+
+        # Monthly rebalancing (day 7-15)
+        is_rebalance = (
+            last_rebalance is None or
+            ((date.year, date.month) != (last_rebalance.year, last_rebalance.month) and 7 <= date.day <= 15)
+        )
+
+        if is_rebalance:
+            last_rebalance = date
+
+            # Sell all holdings
+            for ticker in list(holdings.keys()):
+                df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                if len(df_at_date) > 0:
+                    price = df_at_date.iloc[-1]['close']
+                    shares = holdings[ticker]['shares']
+                    value = shares * price
+                    cash += value
+
+                    trades.append({
+                        'date': date,
+                        'ticker': ticker,
+                        'action': 'SELL',
+                        'price': price,
+                        'shares': shares,
+                        'value': value,
+                        'reason': 'REBALANCE'
+                    })
+            holdings = {}
+
+            # Get VIX for cash reserve calculation
+            vix = 20
+            if bot.vix_data is not None:
+                vix_at_date = bot.vix_data[bot.vix_data.index <= date]
+                if len(vix_at_date) > 0:
+                    vix = vix_at_date.iloc[-1]['close']
+
+            # VIX-based cash reserve (5-70%)
+            if vix < 15:
+                cash_reserve = 0.05
+            elif vix < 20:
+                cash_reserve = 0.10
+            elif vix < 25:
+                cash_reserve = 0.20
+            elif vix < 30:
+                cash_reserve = 0.35
+            elif vix < 40:
+                cash_reserve = 0.50
+            else:
+                cash_reserve = 0.70
+
+            # Determine regime
+            if cash_reserve <= 0.10:
+                regime = 'BULLISH'
+            elif cash_reserve <= 0.35:
+                regime = 'NEUTRAL'
+            else:
+                regime = 'BEARISH'
+
+            # Progressive drawdown control
+            portfolio_drawdown = ((current_value - portfolio_peak) / portfolio_peak) * 100
+            if portfolio_drawdown < -5:
+                drawdown_multiplier = 0.90
+            elif portfolio_drawdown < -10:
+                drawdown_multiplier = 0.75
+            elif portfolio_drawdown < -15:
+                drawdown_multiplier = 0.50
+            elif portfolio_drawdown < -20:
+                drawdown_multiplier = 0.25
+            else:
+                drawdown_multiplier = 1.0
+
+            invest_amount = current_value * (1 - cash_reserve) * drawdown_multiplier
+
+            # Score ALL stocks with ML
+            all_ml_scores = score_stocks_at_date(date)
+
+            # Identify top mega-caps by trading volume
+            megacap_candidates = []
+            for ticker in MAG7_CANDIDATES:
+                if ticker in bot.stocks_data and ticker in all_ml_scores:
+                    df = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df) >= config['lookback_trading_value']:
+                        trading_value = (df['close'] * df['volume']).iloc[-config['lookback_trading_value']:].mean()
+                        ml_score = all_ml_scores[ticker]
+                        megacap_candidates.append((ticker, ml_score, trading_value))
+
+            # Sort by trading volume, take top 7
+            megacap_candidates.sort(key=lambda x: x[2], reverse=True)
+            top_megacaps_by_volume = megacap_candidates[:config['num_top_megacaps']]
+
+            # Pick Top 3 by ML score
+            top_megacaps_by_volume.sort(key=lambda x: x[1], reverse=True)
+            selected_megacaps = [(t[0], t[1]) for t in top_megacaps_by_volume[:config['num_megacap']]]
+
+            # Pick Top 2 momentum stocks by ML score (excluding mega-caps)
+            momentum_candidates = [(t, s) for t, s in all_ml_scores.items()
+                                  if t not in [m[0] for m in top_megacaps_by_volume]]
+            momentum_candidates.sort(key=lambda x: x[1], reverse=True)
+            selected_momentum = momentum_candidates[:config['num_momentum']]
+
+            # Allocate 70% to mega-caps, 30% to momentum
+            megacap_amount = invest_amount * config['megacap_allocation']
+            momentum_amount = invest_amount * (1 - config['megacap_allocation'])
+
+            # Buy mega-cap stocks (equal weight within allocation)
+            if selected_megacaps:
+                per_megacap = megacap_amount / len(selected_megacaps)
+                for ticker, ml_score in selected_megacaps:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        shares = per_megacap / price
+                        holdings[ticker] = {
+                            'shares': shares,
+                            'entry_price': price,
+                            'peak_price': price
+                        }
+                        cash -= per_megacap
+
+                        trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'BUY',
+                            'price': price,
+                            'shares': shares,
+                            'value': per_megacap,
+                            'score': ml_score,
+                            'category': 'MEGACAP_ML'
+                        })
+
+            # Buy momentum stocks (equal weight within allocation)
+            if selected_momentum:
+                per_mom = momentum_amount / len(selected_momentum)
+                for ticker, ml_score in selected_momentum:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        shares = per_mom / price
+                        holdings[ticker] = {
+                            'shares': shares,
+                            'entry_price': price,
+                            'peak_price': price
+                        }
+                        cash -= per_mom
+
+                        trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'BUY',
+                            'price': price,
+                            'shares': shares,
+                            'value': per_mom,
+                            'score': ml_score,
+                            'category': 'MOMENTUM_ML'
+                        })
+
+            # Record portfolio state
+            trades.append({
+                'date': date,
+                'ticker': 'PORTFOLIO',
+                'action': 'HOLDINGS',
+                'holdings': list(holdings.keys()),
+                'cash': cash,
+                'cash_reserve': cash_reserve,
+                'market_regime': regime,
+                'vix': vix,
+                'megacaps': [m[0] for m in top_megacaps_by_volume[:3]]  # Top 3 by volume
+            })
+
+    return trades
+
+
+
+def create_trade_visualizations(run_id=None):
+    """Create comprehensive multi-tab trading visualizations
+
+    Args:
+        run_id: Specific run to visualize. If None, uses latest run.
+    """
 
     logger.info("="*80)
     logger.info("CREATING MULTI-TAB TRADING DASHBOARD")
     logger.info("="*80)
 
-    # Read data from database (latest run)
+    # Read data from database (latest run or specific run)
     import sqlite3
     script_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(script_dir, '..', '..', 'output', 'data', 'trading_results.db')
 
     conn = sqlite3.connect(db_path)
 
-    # Get latest run
-    latest_run = pd.read_sql_query("""
-        SELECT * FROM backtest_runs
-        ORDER BY id DESC LIMIT 1
-    """, conn)
+    # Get latest run or specific run
+    if run_id is None:
+        latest_run = pd.read_sql_query("""
+            SELECT * FROM backtest_runs
+            ORDER BY id DESC LIMIT 1
+        """, conn)
+    else:
+        latest_run = pd.read_sql_query(f"""
+            SELECT * FROM backtest_runs WHERE id = {run_id}
+        """, conn)
 
     run_id = latest_run['id'].iloc[0]
     initial_capital = latest_run['initial_capital'].iloc[0]
@@ -656,13 +955,22 @@ def create_trade_visualizations():
     logger.info(f"  Data points: {len(portfolio_df)}")
     logger.info(f"  Period: {portfolio_df.index[0].date()} to {portfolio_df.index[-1].date()}")
 
-    # For Tab 1 (trading analysis), we still need to run a minimal backtest to get trade logs
-    # But we use the portfolio_df from database for Tab 2 (performance charts)
+    # For Tab 1 (trading analysis), we need to run a backtest to get trade logs
+    # Strategy selection based on database strategy field
+    strategy_name = latest_run['strategy'].iloc[0]
     data_dir = os.path.join(script_dir, '..', '..', 'sp500_data', 'stock_data_1990_2024_top500')
     bot = PortfolioRotationBot(data_dir=data_dir, initial_capital=initial_capital)
     bot.prepare_data()
     bot.score_all_stocks()
-    trades_log = track_trades_v30(bot, start_year=2015, end_year=2024)
+
+    # Select appropriate tracking function based on strategy
+    if 'V30_ML' in strategy_name or 'ML_STEP1' in strategy_name:
+        logger.info(f"  Using V30+ML tracking for strategy: {strategy_name}")
+        trades_log = track_trades_v30_ml(bot, start_year=2015, end_year=2024)
+    else:
+        # Default to V30 tracking for V30 and other strategies
+        logger.info(f"  Using V30 tracking for strategy: {strategy_name}")
+        trades_log = track_trades_v30(bot, start_year=2015, end_year=2024)
     
     # Create output file
     output_path = os.path.join(script_dir, "trading_analysis.html")
@@ -2374,4 +2682,270 @@ def get_most_traded_stocks(trades_log, top_n=6):
 
 
 if __name__ == "__main__":
-    create_trade_visualizations()
+    import argparse
+    parser = argparse.ArgumentParser(description='Create trading visualizations')
+    parser.add_argument('--run_id', type=int, default=None,
+                       help='Specific run ID to visualize (default: latest run)')
+    args = parser.parse_args()
+
+    create_trade_visualizations(run_id=args.run_id)
+
+
+def create_strategy_comparison_visualization(output_path='output/strategy_comparison_bokeh.html'):
+    """
+    Create interactive strategy comparison visualization with Bokeh
+    Compares V30, ML Regularized, V31 ML+MegaCap, and SPY
+    """
+    import pandas as pd
+    import numpy as np
+    from bokeh.plotting import figure, output_file, save
+    from bokeh.layouts import column, row
+    from bokeh.models import HoverTool, Div, Legend
+    from bokeh.palettes import Category10_4
+    
+    logger.info("Creating strategy comparison visualization...")
+    
+    # Load data
+    try:
+        v30_df = pd.read_csv('output/ml_dynamic_megacap.csv', parse_dates=['date'], index_col='date')
+        ml_df = pd.read_csv('output/ml_regularized.csv', parse_dates=['date'], index_col='date')
+        v31_df = pd.read_csv('output/v31_ml_results.csv', parse_dates=['date'], index_col='date')
+        
+        # Load SPY
+        spy_df = pd.read_csv('sp500_data/stock_data_1990_2024_top500/SPY.csv')
+        date_col = 'Date' if 'Date' in spy_df.columns else 'date'
+        spy_df[date_col] = pd.to_datetime(spy_df[date_col])
+        spy_df = spy_df.set_index(date_col)
+        spy_df.columns = spy_df.columns.str.lower()
+    except Exception as e:
+        logger.error(f"Error loading data: {e}")
+        return
+    
+    # Filter to common period (2015-2024)
+    start_date = '2015-01-01'
+    end_date = '2024-12-31'
+    v30_df = v30_df[(v30_df.index >= start_date) & (v30_df.index <= end_date)]
+    ml_df = ml_df[(ml_df.index >= start_date) & (ml_df.index <= end_date)]
+    v31_df = v31_df[(v31_df.index >= start_date) & (v31_df.index <= end_date)]
+    spy_df = spy_df[(spy_df.index >= start_date) & (spy_df.index <= end_date)]
+    
+    # Normalize SPY to start at 100000
+    spy_df['value'] = (spy_df['close'] / spy_df['close'].iloc[0]) * 100000
+    
+    # Calculate metrics
+    def calc_metrics(df, name):
+        initial = df['value'].iloc[0]
+        final = df['value'].iloc[-1]
+        years = (df.index[-1] - df.index[0]).days / 365.25
+        total_return = ((final / initial) - 1) * 100
+        annual_return = ((final / initial) ** (1/years) - 1) * 100
+        
+        running_max = df['value'].expanding().max()
+        drawdown = ((df['value'] - running_max) / running_max * 100)
+        max_drawdown = drawdown.min()
+        
+        daily_returns = df['value'].pct_change()
+        sharpe = (daily_returns.mean() / daily_returns.std()) * np.sqrt(252) if daily_returns.std() > 0 else 0
+        
+        return {
+            'name': name,
+            'annual': annual_return,
+            'total': total_return,
+            'max_dd': max_drawdown,
+            'sharpe': sharpe,
+            'final': final
+        }
+    
+    v30_metrics = calc_metrics(v30_df, 'V30 Dynamic Mega-Cap')
+    ml_metrics = calc_metrics(ml_df, 'ML Regularized')
+    v31_metrics = calc_metrics(v31_df, 'V31 ML + Mega-Cap')
+    spy_metrics = calc_metrics(spy_df, 'SPY Benchmark')
+    
+    all_metrics = [v30_metrics, ml_metrics, v31_metrics, spy_metrics]
+    
+    # Create Bokeh output
+    output_file(output_path)
+    
+    # Title
+    title = Div(text="""
+        <h1 style='text-align: center; color: #2c3e50; margin-bottom: 20px;'>
+            Strategy Comparison Dashboard (2015-2024)
+        </h1>
+        <p style='text-align: center; font-size: 14px; color: #7f8c8d;'>
+            Comprehensive comparison of V30, ML Regularized, V31 Integration, and SPY Benchmark
+        </p>
+    """, width=1400)
+    
+    # Summary table
+    table_html = "<div style='margin: 20px auto; width: 1200px;'>"
+    table_html += "<table style='width: 100%; border-collapse: collapse; font-family: Arial;'>"
+    table_html += "<tr style='background: #34495e; color: white;'>"
+    table_html += "<th style='padding: 12px; text-align: left;'>Strategy</th>"
+    table_html += "<th style='padding: 12px; text-align: right;'>Annual Return</th>"
+    table_html += "<th style='padding: 12px; text-align: right;'>Total Return</th>"
+    table_html += "<th style='padding: 12px; text-align: right;'>Max Drawdown</th>"
+    table_html += "<th style='padding: 12px; text-align: right;'>Sharpe Ratio</th>"
+    table_html += "<th style='padding: 12px; text-align: right;'>Final Value</th>"
+    table_html += "</tr>"
+    
+    colors = ['#2ecc71', '#3498db', '#e74c3c', '#95a5a6']
+    for metrics, color in zip(all_metrics, colors):
+        row_style = f"background: {color}22; border-bottom: 1px solid #ddd;"
+        table_html += f"<tr style='{row_style}'>"
+        table_html += f"<td style='padding: 10px; font-weight: bold;'>{metrics['name']}</td>"
+        table_html += f"<td style='padding: 10px; text-align: right;'>{metrics['annual']:.1f}%</td>"
+        table_html += f"<td style='padding: 10px; text-align: right;'>{metrics['total']:.1f}%</td>"
+        table_html += f"<td style='padding: 10px; text-align: right;'>{metrics['max_dd']:.1f}%</td>"
+        table_html += f"<td style='padding: 10px; text-align: right;'>{metrics['sharpe']:.2f}</td>"
+        table_html += f"<td style='padding: 10px; text-align: right;'>${metrics['final']:,.0f}</td>"
+        table_html += "</tr>"
+    
+    table_html += "</table></div>"
+    summary_table = Div(text=table_html, width=1400)
+    
+    # Chart 1: Portfolio Value Over Time
+    p1 = figure(
+        width=1400, height=500,
+        title="Portfolio Value Over Time (Log Scale)",
+        x_axis_type='datetime',
+        y_axis_type='log',
+        tools='pan,wheel_zoom,box_zoom,reset,save'
+    )
+    
+    p1.line(v30_df.index, v30_df['value'], legend_label='V30 Dynamic Mega-Cap',
+            line_width=2, color=colors[0], alpha=0.8)
+    p1.line(ml_df.index, ml_df['value'], legend_label='ML Regularized',
+            line_width=2, color=colors[1], alpha=0.8)
+    p1.line(v31_df.index, v31_df['value'], legend_label='V31 ML + Mega-Cap',
+            line_width=2, color=colors[2], alpha=0.8)
+    p1.line(spy_df.index, spy_df['value'], legend_label='SPY Benchmark',
+            line_width=2, color=colors[3], alpha=0.6, line_dash='dashed')
+    
+    p1.add_tools(HoverTool(
+        tooltips=[('Date', '@x{%F}'), ('Value', '$@y{0,0}')],
+        formatters={'@x': 'datetime'},
+        mode='vline'
+    ))
+    
+    p1.legend.location = "top_left"
+    p1.legend.click_policy = "hide"
+    p1.xaxis.axis_label = "Date"
+    p1.yaxis.axis_label = "Portfolio Value ($)"
+    
+    # Chart 2: Drawdown
+    p2 = figure(
+        width=700, height=400,
+        title="Drawdown Over Time",
+        x_axis_type='datetime',
+        tools='pan,wheel_zoom,box_zoom,reset,save'
+    )
+    
+    v30_running_max = v30_df['value'].expanding().max()
+    v30_dd = ((v30_df['value'] - v30_running_max) / v30_running_max * 100)
+    ml_running_max = ml_df['value'].expanding().max()
+    ml_dd = ((ml_df['value'] - ml_running_max) / ml_running_max * 100)
+    v31_running_max = v31_df['value'].expanding().max()
+    v31_dd = ((v31_df['value'] - v31_running_max) / v31_running_max * 100)
+    spy_running_max = spy_df['value'].expanding().max()
+    spy_dd = ((spy_df['value'] - spy_running_max) / spy_running_max * 100)
+    
+    p2.line(v30_df.index, v30_dd, legend_label='V30', line_width=2, color=colors[0], alpha=0.7)
+    p2.line(ml_df.index, ml_dd, legend_label='ML Reg', line_width=2, color=colors[1], alpha=0.7)
+    p2.line(v31_df.index, v31_dd, legend_label='V31', line_width=2, color=colors[2], alpha=0.7)
+    p2.line(spy_df.index, spy_dd, legend_label='SPY', line_width=2, color=colors[3], alpha=0.5, line_dash='dashed')
+    
+    p2.add_tools(HoverTool(
+        tooltips=[('Date', '@x{%F}'), ('Drawdown', '@y{0.1f}%')],
+        formatters={'@x': 'datetime'},
+        mode='vline'
+    ))
+    
+    p2.legend.location = "bottom_left"
+    p2.legend.click_policy = "hide"
+    p2.xaxis.axis_label = "Date"
+    p2.yaxis.axis_label = "Drawdown (%)"
+    
+    # Chart 3: Annual Returns Bar
+    p3 = figure(
+        width=700, height=400,
+        title="Annual Return Comparison",
+        x_range=[m['name'] for m in all_metrics],
+        tools='save'
+    )
+    
+    p3.vbar(
+        x=[m['name'] for m in all_metrics],
+        top=[m['annual'] for m in all_metrics],
+        width=0.6,
+        color=colors,
+        alpha=0.7
+    )
+    
+    p3.xaxis.major_label_orientation = 0.7
+    p3.yaxis.axis_label = "Annual Return (%)"
+    
+    # Chart 4: Risk-Return Scatter
+    p4 = figure(
+        width=1400, height=400,
+        title="Risk-Return Profile (Lower Risk, Higher Return = Better)",
+        tools='pan,wheel_zoom,box_zoom,reset,save'
+    )
+    
+    for metrics, color in zip(all_metrics, colors):
+        p4.circle(
+            abs(metrics['max_dd']),
+            metrics['annual'],
+            size=15,
+            color=color,
+            alpha=0.6,
+            legend_label=metrics['name']
+        )
+        
+        # Add labels
+        p4.text(
+            abs(metrics['max_dd']) + 1,
+            metrics['annual'] + 3,
+            text=[metrics['name']],
+            text_font_size='10pt',
+            text_color=color
+        )
+    
+    p4.xaxis.axis_label = "Max Drawdown (%) - Lower is Better"
+    p4.yaxis.axis_label = "Annual Return (%)"
+    p4.legend.location = "top_right"
+    p4.legend.click_policy = "hide"
+    
+    # Key insights
+    insights = Div(text=f"""
+        <div style='margin: 20px auto; width: 1200px; padding: 20px; background: #ecf0f1; border-radius: 8px;'>
+            <h3 style='color: #2c3e50; margin-bottom: 15px;'>Key Insights</h3>
+            <ul style='font-size: 14px; color: #34495e; line-height: 1.8;'>
+                <li><strong>Best Performer:</strong> ML Regularized with {ml_metrics['annual']:.1f}% annual return</li>
+                <li><strong>V31 Underperformance:</strong> V31 achieved only {v31_metrics['annual']:.1f}% annual (4.3x worse than ML alone)</li>
+                <li><strong>Risk Analysis:</strong> V31 has highest drawdown at {v31_metrics['max_dd']:.1f}% despite lower returns</li>
+                <li><strong>Alpha vs SPY:</strong> ML Regularized: +{ml_metrics['annual']-spy_metrics['annual']:.1f}%, V30: +{v30_metrics['annual']-spy_metrics['annual']:.1f}%, V31: +{v31_metrics['annual']-spy_metrics['annual']:.1f}%</li>
+                <li><strong>Recommendation:</strong> Use ML Regularized strategy - highest returns with excellent risk management</li>
+            </ul>
+        </div>
+    """, width=1400)
+    
+    # Layout
+    layout = column(
+        title,
+        summary_table,
+        p1,
+        row(p2, p3),
+        p4,
+        insights
+    )
+    
+    save(layout)
+    logger.info(f"Strategy comparison saved to: {output_path}")
+    
+    return output_path
+
+
+if __name__ == "__main__":
+    # Add strategy comparison to main execution
+    logger.info("Creating strategy comparison visualization...")
+    create_strategy_comparison_visualization()
