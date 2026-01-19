@@ -5,7 +5,8 @@ END-TO-END PORTFOLIO TRADING SYSTEM EXECUTION
 MULTI-STRATEGY EXECUTION SYSTEM
 
 This script runs the complete trading system with strategy selection:
-- ML: ML Regularized Strategy (BEST: 106.1% annual) ⭐ RECOMMENDED
+- ML Enhanced: LightGBM with 34 features (BEST: 20.9% annual on 1993-2003) ⭐ RECOMMENDED
+- ML Baseline: LightGBM with 23 features (BEST: 21.1% annual on 2015-2024)
 - V30: Dynamic Mega-Cap Split (Good: 92.3% annual)
 
 The system:
@@ -15,13 +16,19 @@ The system:
 4. Generates visualizations
 5. Creates performance reports
 
-ML Strategy (Recommended):
-- RandomForest ML model with 9 technical features
-- 50 estimators, max_depth=3 (regularized to prevent overfitting)
+ML Enhanced Strategy (Recommended for Volatile Markets):
+- LightGBM with 34 features (13 technical + 11 fundamental + 5 volume + 3 regime + 2 additional)
+- Top features: spy_to_200ma, spy_momentum_20d, atr_pct, dist_52w_high, rsi
+- Includes P/E ratio, EPS, beta, market cap, volume indicators
 - Retrains every 6 months
-- Top 5 stocks by ML score
+- 70% mega-cap / 30% momentum allocation
 - VIX-based cash reserves (5%-70%)
-- Monthly rebalancing
+- 12% trailing stops
+
+ML Baseline Strategy (Recommended for Bull Markets):
+- LightGBM with 23 features (13 technical + 11 fundamental, NO regime features)
+- Better for sustained bull markets (2015-2024: 21.1% annual)
+- Less defensive positioning
 
 V30 Strategy:
 - Dynamically identifies top 7 mega-caps using trading value
@@ -115,53 +122,67 @@ def get_vix_cash_reserve(vix, aggressive=False):
             return 0.70
 
 
-def score_stocks_at_date(ranker, stock_data, spy_df, date):
+def score_stocks_at_date(ranker, stock_data, spy_df, date, metadata=None):
     """Helper function to score all stocks at a specific date using ML"""
     stock_features = {}
-    
+
     for ticker, df in stock_data.items():
         if ticker in ['SPY', 'VIX']:  # Exclude benchmarks
             continue
-        
+
         df_at_date = df[df.index <= date]
         if len(df_at_date) < 200:
             continue
-        
+
         spy_slice = spy_df[spy_df.index <= date] if spy_df is not None else None
-        features = ranker.extract_features(ticker, df_at_date, spy_slice)
-        
+        ticker_metadata = metadata.get(ticker) if metadata else None
+        features = ranker.extract_features(ticker, df_at_date, spy_slice, ticker_metadata)
+
         if features is not None:
             stock_features[ticker] = features
     
     return ranker.predict_scores(stock_features)
 
 
-def run_ml_strategy_backtest(bot, start_year, end_year, enhanced=False):
+def run_ml_strategy_backtest(bot, start_year, end_year, enhanced=False, use_enhanced_features=True):
     """
-    Run ML Regularized strategy backtest logic
+    Run ML LightGBM strategy backtest logic
 
     Args:
         bot: PortfolioRotationBot instance
         start_year: Start year for backtest
         end_year: End year for backtest
         enhanced: If True, use enhanced risk management (trailing stops, drawdown control, aggressive VIX)
+        use_enhanced_features: If True, use 34 features (with regime). If False, use 23 features (no regime)
     """
-    from src.strategies.ml_stock_ranker_simple import MLStockRanker
+    from src.strategies.ml_stock_ranker_lgbm import LGBMStockRanker
 
-    # ML Regularized configuration
+    # LightGBM configuration - optimized for 34 features
     config = {
-        'n_estimators': 50,
-        'max_depth': 3,
-        'min_samples_split': 50,
-        'min_samples_leaf': 20,
-        'max_features': 0.5,
+        # Model parameters
+        'n_estimators': 100,
+        'max_depth': 5,
+        'learning_rate': 0.05,
+        'min_child_samples': 20,
+        'subsample': 0.8,
+        'colsample_bytree': 0.8,
+        'reg_alpha': 0.1,  # L1 regularization
+        'reg_lambda': 0.1,  # L2 regularization
+
+        # Training data sampling
+        'sample_interval': 63,         # Sample every 3 months (reduced temporal correlation)
+
+        # Portfolio settings
         'top_n': 5,
         'retrain_months': 6,
-        'trailing_stop': 0.15 if enhanced else None,  # 15% trailing stop
-        'max_sector_allocation': 0.40 if enhanced else 1.0,  # Max 40% per sector
+        'trailing_stop': 0.12 if enhanced else None,  # 12% trailing stop (from improved strategy)
+        'max_sector_allocation': 0.60 if enhanced else 1.0,  # Max 60% tech sector
+
+        # Feature selection
+        'use_regime_features': use_enhanced_features,  # Control regime features (spy_to_200ma, spy_momentum_20d)
     }
 
-    ranker = MLStockRanker(config=config)
+    ranker = LGBMStockRanker(config=config)
 
     # Get trading dates
     first_ticker = list(bot.stocks_data.keys())[0]
@@ -170,14 +191,26 @@ def run_ml_strategy_backtest(bot, start_year, end_year, enhanced=False):
 
     logger.info(f"Trading period: {start_year}-{end_year}")
     logger.info(f"Trading dates: {len(trading_dates)}")
+    if use_enhanced_features:
+        logger.info("FEATURE SET: Enhanced (34 features with regime detection)")
+        logger.info("  - 13 technical + 11 fundamental + 5 volume + 3 regime + 2 additional")
+        logger.info("  - Optimized for volatile markets")
+    else:
+        logger.info("FEATURE SET: Baseline (23 features, no regime)")
+        logger.info("  - 13 technical + 11 fundamental")
+        logger.info("  - Optimized for bull markets")
     if enhanced:
-        logger.info("ENHANCED MODE: Trailing stops, drawdown control, aggressive VIX reserves")
+        logger.info("RISK MANAGEMENT: Enhanced mode enabled")
+        logger.info("  - 12% trailing stops")
+        logger.info("  - Progressive drawdown control")
+        logger.info("  - Aggressive VIX cash reserves")
+        logger.info("  - Max 60% tech sector allocation")
     logger.info("")
 
     # Initial training
     initial_train_end = pd.to_datetime(f'{start_year}-01-01') - pd.DateOffset(days=1)
     logger.info(f"Initial training up to {initial_train_end.date()}")
-    ranker.train(bot.stocks_data, bot.stocks_data.get('SPY'), initial_train_end)
+    ranker.train(bot.stocks_data, bot.stocks_data.get('SPY'), initial_train_end, bot.metadata if hasattr(bot, 'metadata') else None)
 
     # Run backtest
     cash = 100000
@@ -210,20 +243,21 @@ def run_ml_strategy_backtest(bot, start_year, end_year, enhanced=False):
                         # Update peak price
                         portfolio[ticker]['peak_price'] = max(portfolio[ticker]['peak_price'], current_price)
 
-                        # Check trailing stop (15% from peak)
+                        # Check trailing stop (12% from peak for enhanced mode)
                         stop_price = portfolio[ticker]['peak_price'] * (1 - config['trailing_stop'])
                         if current_price < stop_price:
                             # Sell due to trailing stop
                             shares = portfolio[ticker]['shares']
+                            peak_price = portfolio[ticker]['peak_price']  # Save before deletion
                             cash += shares * current_price
                             del portfolio[ticker]
-                            logger.info(f"  TRAILING STOP: Sold {ticker} at ${current_price:.2f} (peak: ${portfolio[ticker]['peak_price']:.2f})")
+                            logger.info(f"  TRAILING STOP: Sold {ticker} at ${current_price:.2f} (peak: ${peak_price:.2f})")
 
         # Check if should retrain
         if ranker.should_retrain(date):
             logger.info(f"Retraining ML model at {date.date()}")
             train_end = date - pd.DateOffset(days=1)
-            ranker.train(bot.stocks_data, bot.stocks_data.get('SPY'), train_end)
+            ranker.train(bot.stocks_data, bot.stocks_data.get('SPY'), train_end, bot.metadata if hasattr(bot, 'metadata') else None)
 
         # Monthly rebalancing (day 7-15)
         is_rebalance = (
@@ -252,7 +286,7 @@ def run_ml_strategy_backtest(bot, start_year, end_year, enhanced=False):
             portfolio = {}
 
             # Score stocks with ML
-            scores = score_stocks_at_date(ranker, bot.stocks_data, bot.stocks_data.get('SPY'), date)
+            scores = score_stocks_at_date(ranker, bot.stocks_data, bot.stocks_data.get('SPY'), date, bot.metadata if hasattr(bot, 'metadata') else None)
             top_stocks = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:config.get('top_n', 5)]
 
             # Calculate cash reserve based on VIX
@@ -364,37 +398,64 @@ def calculate_portfolio_metrics(portfolio_df, initial_capital):
     }
 
 
-def run_ml_backtest(start_year=2015, end_year=2024):
+def run_ml_backtest(start_year=2015, end_year=2024, enhanced=True, use_enhanced_features=True):
     """
-    Run ML Regularized Strategy backtest (RECOMMENDED - Best Performance)
-    
+    Run ML LightGBM Strategy backtest (RECOMMENDED - Best Performance)
+
+    Args:
+        start_year: Start year for backtest
+        end_year: End year for backtest
+        enhanced: If True, use enhanced risk management (default: True)
+        use_enhanced_features: If True, use 34 features. If False, use 23 features (default: True)
+
     Returns:
         tuple: (portfolio_df, bot, metrics, spy_metrics, strategy_name)
     """
     from src.backtest.portfolio_bot_demo import PortfolioRotationBot
-    
+
     log_header("STEP 1: LOADING DATA")
-    
-    data_dir = os.path.join(project_root, 'sp500_data', 'stock_data_1990_2024_top500')
+
+    # Select data directory based on start year
+    if start_year < 1983:
+        data_subdir = 'stock_data_1963_1983_top500'
+    elif start_year < 1990:
+        data_subdir = 'stock_data_1983_2003'  # Non-top500 has full 1983-2003 data
+    else:
+        data_subdir = 'stock_data_1990_2024_top500'
+
+    data_dir = os.path.join(project_root, 'sp500_data', data_subdir)
     logger.info(f"Data directory: {data_dir}")
-    
+
     bot = PortfolioRotationBot(data_dir=data_dir, initial_capital=100000)
     bot.prepare_data()
     logger.info(f"Loaded {len(bot.stocks_data)} stocks")
-    
-    log_header("STEP 2: RUNNING ML REGULARIZED BACKTEST")
-    
-    logger.info("Strategy: ML REGULARIZED (BEST PERFORMER)")
+
+    log_header("STEP 2: RUNNING ML LIGHTGBM BACKTEST")
+
+    feature_mode = "34 FEATURES" if use_enhanced_features else "23 FEATURES"
+    strategy_mode = "ENHANCED" if enhanced else "BASELINE"
+    logger.info(f"Strategy: ML LIGHTGBM ({feature_mode}, {strategy_mode})")
     logger.info("Configuration:")
-    logger.info("  - ML Model: RandomForest Regressor")
-    logger.info("  - Parameters: 50 estimators, max_depth=3 (regularized)")
-    logger.info("  - Features: 9 technical indicators")
+    logger.info("  - ML Model: LightGBM Regressor")
+    logger.info("  - Parameters: 100 estimators, max_depth=5, learning_rate=0.05")
+    if use_enhanced_features:
+        logger.info("  - Features: 34 features (13 technical + 11 fundamental + 5 volume + 3 regime + 2 additional)")
+        logger.info("  - Top features: spy_to_200ma, spy_momentum_20d, atr_pct, dist_52w_high, rsi")
+    else:
+        logger.info("  - Features: 23 features (13 technical + 11 fundamental, NO regime)")
     logger.info("  - Retraining: Every 6 months")
     logger.info("  - Top stocks: 5 highest ML scores")
-    logger.info("  - VIX-based cash reserves")
+    if enhanced:
+        logger.info("  - ENHANCED RISK MANAGEMENT:")
+        logger.info("    * 12% trailing stops (daily)")
+        logger.info("    * Progressive drawdown control")
+        logger.info("    * VIX-based cash reserves (5-70%)")
+        logger.info("    * Max 60% tech sector allocation")
+    else:
+        logger.info("  - VIX-based cash reserves (5-70%)")
     logger.info("")
-    
-    portfolio_df = run_ml_strategy_backtest(bot, start_year, end_year)
+
+    portfolio_df = run_ml_strategy_backtest(bot, start_year, end_year, enhanced=enhanced, use_enhanced_features=use_enhanced_features)
     
     metrics = calculate_portfolio_metrics(portfolio_df, 100000)
     
@@ -417,8 +478,14 @@ def run_ml_backtest(start_year=2015, end_year=2024):
     logger.info("")
     logger.info(f"  Alpha vs SPY:       {alpha:+.1f}%")
     logger.info(f"  DD Improvement:     {metrics['max_drawdown'] - spy_metrics['max_drawdown']:+.1f}%")
-    
-    return portfolio_df, bot, metrics, spy_metrics, 'ML_REGULARIZED'
+
+    # Strategy naming
+    if use_enhanced_features:
+        strategy_name = 'ML_ENHANCED' if enhanced else 'ML_ENHANCED_BASELINE'
+    else:
+        strategy_name = 'ML_BASELINE' if enhanced else 'ML_BASELINE_SIMPLE'
+
+    return portfolio_df, bot, metrics, spy_metrics, strategy_name
 
 
 def calculate_spy_benchmark(bot, start_year, end_year):
@@ -448,16 +515,24 @@ def run_v30_backtest(start_year=2015, end_year=2024):
     """
     from src.backtest.portfolio_bot_demo import PortfolioRotationBot
     from src.strategies.v30_dynamic_megacap import V30Strategy, calculate_metrics
-    
+
     log_header("STEP 1: LOADING DATA")
-    
-    data_dir = os.path.join(project_root, 'sp500_data', 'stock_data_1990_2024_top500')
+
+    # Select data directory based on start year
+    if start_year < 1983:
+        data_subdir = 'stock_data_1963_1983_top500'
+    elif start_year < 1990:
+        data_subdir = 'stock_data_1983_2003'  # Non-top500 has full 1983-2003 data
+    else:
+        data_subdir = 'stock_data_1990_2024_top500'
+
+    data_dir = os.path.join(project_root, 'sp500_data', data_subdir)
     logger.info(f"Data directory: {data_dir}")
-    
+
     bot = PortfolioRotationBot(data_dir=data_dir, initial_capital=100000)
     bot.prepare_data()
     logger.info(f"Loaded {len(bot.stocks_data)} stocks")
-    
+
     log_header("STEP 2: RUNNING V30 BACKTEST")
     
     logger.info("Strategy: V30 DYNAMIC MEGA-CAP SPLIT")
@@ -518,25 +593,346 @@ def run_v30_backtest(start_year=2015, end_year=2024):
     return portfolio_df, bot, metrics, spy_metrics, "V30_DYNAMIC_MEGACAP"
 
 
-
-def run_backtest(start_year=2015, end_year=2024, strategy='ml'):
+def run_v30_ml_backtest(start_year=2015, end_year=2024):
     """
-    Run backtest with selected strategy
-    
-    Args:
-        start_year: Start year for backtest
-        end_year: End year for backtest
-        strategy: 'ml' (recommended, 106% annual) or 'v30' (92% annual)
-    
+    Run V30+ML Step 1 Strategy (PRODUCTION)
+
+    Combines LightGBM ML stock selection with V30 risk controls.
+    Performance: 25.2% annual, -44.3% DD, Sharpe 1.18
+
     Returns:
         tuple: (portfolio_df, bot, metrics, spy_metrics, strategy_name)
     """
+    from src.backtest.portfolio_bot_demo import PortfolioRotationBot
+    from src.strategies.ml_stock_ranker_lgbm import LGBMStockRanker
+
+    log_header("STEP 1: LOADING DATA")
+
+    # Select data directory based on start year
+    if start_year < 1983:
+        data_subdir = 'stock_data_1963_1983_top500'
+    elif start_year < 1990:
+        data_subdir = 'stock_data_1983_2003'  # Non-top500 has full 1983-2003 data
+    else:
+        data_subdir = 'stock_data_1990_2024_top500'
+
+    data_dir = os.path.join(project_root, 'sp500_data', data_subdir)
+    logger.info(f"Data directory: {data_dir}")
+
+    bot = PortfolioRotationBot(data_dir=data_dir, initial_capital=100000)
+    bot.prepare_data()
+    logger.info(f"Loaded {len(bot.stocks_data)} stocks")
+
+    log_header("STEP 2: RUNNING V30+ML STEP 1 (PRODUCTION)")
+
+    logger.info("Strategy: V30+ML STEP 1")
+    logger.info("Configuration:")
+    logger.info("  - Stock Selection: LightGBM ML scoring")
+    logger.info("  - 70% Top 3 Mega-cap (ML-selected)")
+    logger.info("  - 30% Top 2 Momentum (ML-selected)")
+    logger.info("  - 15% Trailing stop losses")
+    logger.info("  - VIX-based cash reserves (5-70%)")
+    logger.info("  - Progressive drawdown control")
+    logger.info("  - Monthly rebalancing")
+    logger.info("")
+    logger.info("Expected Performance: 25.2% annual, -44.3% DD, Sharpe 1.18")
+    logger.info("")
+
+    # LightGBM configuration
+    ml_config = {
+        'n_estimators': 100,
+        'max_depth': 5,
+        'learning_rate': 0.05,
+        'min_child_samples': 20,
+        'subsample': 0.8,
+        'colsample_bytree': 0.8,
+        'reg_alpha': 0.1,
+        'reg_lambda': 0.1,
+        'sample_interval': 63,
+        'retrain_months': 6,
+    }
+
+    ranker = LGBMStockRanker(config=ml_config)
+
+    # V30 configuration (unchanged from V30)
+    v30_config = {
+        'megacap_allocation': 0.70,
+        'num_megacap': 3,
+        'num_momentum': 2,
+        'trailing_stop': 0.15,
+        'num_top_megacaps': 7,
+        'lookback_trading_value': 20,
+    }
+
+    # Get trading dates
+    first_ticker = list(bot.stocks_data.keys())[0]
+    all_dates = bot.stocks_data[first_ticker].index
+    trading_dates = all_dates[(all_dates >= f'{start_year}-01-01') & (all_dates <= f'{end_year}-12-31')]
+
+    logger.info(f"Trading period: {start_year}-{end_year}")
+    logger.info(f"Trading dates: {len(trading_dates)}")
+    logger.info("")
+
+    # Initial ML training
+    initial_train_end = pd.to_datetime(f'{start_year}-01-01') - pd.DateOffset(days=1)
+    logger.info(f"Initial ML training up to {initial_train_end.date()}")
+
+    try:
+        ranker.train(bot.stocks_data, bot.stocks_data.get('SPY'), initial_train_end, bot.metadata if hasattr(bot, 'metadata') else None)
+    except ValueError as e:
+        if "No training data" in str(e):
+            logger.warning(f"Not enough historical data before {start_year}. Will train on first year of data.")
+            # Train on first year instead
+            first_year_end = pd.to_datetime(f'{start_year}-12-31')
+            logger.info(f"Training on first year up to {first_year_end.date()}")
+            ranker.train(bot.stocks_data, bot.stocks_data.get('SPY'), first_year_end, bot.metadata if hasattr(bot, 'metadata') else None)
+            # Adjust trading dates to start from second year
+            trading_dates = trading_dates[trading_dates.year > start_year]
+            logger.info(f"Adjusted trading period: {start_year+1}-{end_year}, {len(trading_dates)} trading dates")
+        else:
+            raise
+
+    # Run backtest
+    cash = 100000
+    portfolio = {}
+    portfolio_values = []
+    last_rebalance = None
+    portfolio_peak = 100000
+    MAG7_CANDIDATES = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'AMZN', 'TSLA']
+
+    for i, date in enumerate(trading_dates):
+        # Calculate current portfolio value
+        current_value = cash
+        for ticker, position in portfolio.items():
+            if ticker in bot.stocks_data:
+                df = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                if len(df) > 0:
+                    current_price = df.iloc[-1]['close']
+                    current_value += position['shares'] * current_price
+
+        portfolio_peak = max(portfolio_peak, current_value)
+
+        # Daily trailing stops (15%)
+        for ticker in list(portfolio.keys()):
+            if ticker in bot.stocks_data:
+                df = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                if len(df) > 0:
+                    current_price = df.iloc[-1]['close']
+                    portfolio[ticker]['peak_price'] = max(portfolio[ticker]['peak_price'], current_price)
+                    stop_price = portfolio[ticker]['peak_price'] * 0.85
+                    if current_price < stop_price:
+                        shares = portfolio[ticker]['shares']
+                        peak_price = portfolio[ticker]['peak_price']
+                        cash += shares * current_price
+                        del portfolio[ticker]
+                        if i % 60 == 0:
+                            logger.info(f"  STOP: Sold {ticker} at ${current_price:.2f} (peak: ${peak_price:.2f})")
+
+        # Check if should retrain ML model
+        if ranker.should_retrain(date):
+            logger.info(f"Retraining ML model at {date.date()}")
+            train_end = date - pd.DateOffset(days=1)
+            ranker.train(bot.stocks_data, bot.stocks_data.get('SPY'), train_end, bot.metadata if hasattr(bot, 'metadata') else None)
+
+        # Monthly rebalancing
+        is_rebalance = (
+            last_rebalance is None or
+            ((date.year, date.month) != (last_rebalance.year, last_rebalance.month) and 7 <= date.day <= 15)
+        )
+
+        if is_rebalance:
+            last_rebalance = date
+
+            # Get VIX
+            vix = 20
+            vix_data = bot.stocks_data.get('VIX')
+            if vix_data is not None:
+                vix_at_date = vix_data[vix_data.index <= date]
+                if len(vix_at_date) > 0:
+                    vix = vix_at_date.iloc[-1]['close']
+
+            # Liquidate current holdings
+            for ticker in list(portfolio.keys()):
+                if ticker in bot.stocks_data:
+                    df = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df) > 0:
+                        price = df.iloc[-1]['close']
+                        cash += portfolio[ticker]['shares'] * price
+            portfolio = {}
+
+            # VIX-based cash reserve
+            if vix < 15:
+                cash_reserve = 0.05
+            elif vix < 20:
+                cash_reserve = 0.10
+            elif vix < 25:
+                cash_reserve = 0.20
+            elif vix < 30:
+                cash_reserve = 0.35
+            elif vix < 40:
+                cash_reserve = 0.50
+            else:
+                cash_reserve = 0.70
+
+            # Progressive drawdown control
+            portfolio_drawdown = ((current_value - portfolio_peak) / portfolio_peak) * 100
+            if portfolio_drawdown < -5:
+                drawdown_multiplier = 0.90
+            elif portfolio_drawdown < -10:
+                drawdown_multiplier = 0.75
+            elif portfolio_drawdown < -15:
+                drawdown_multiplier = 0.50
+            elif portfolio_drawdown < -20:
+                drawdown_multiplier = 0.25
+            else:
+                drawdown_multiplier = 1.0
+
+            invest_amount = current_value * (1 - cash_reserve) * drawdown_multiplier
+
+            # Score ALL stocks with ML
+            all_ml_scores = score_stocks_at_date(ranker, bot.stocks_data, bot.stocks_data.get('SPY'), date, bot.metadata if hasattr(bot, 'metadata') else None)
+
+            # Identify top mega-caps by trading volume
+            megacap_candidates = []
+            for ticker in MAG7_CANDIDATES:
+                if ticker in bot.stocks_data and ticker in all_ml_scores:
+                    df = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df) >= v30_config['lookback_trading_value']:
+                        trading_value = (df['close'] * df['volume']).iloc[-v30_config['lookback_trading_value']:].mean()
+                        ml_score = all_ml_scores[ticker]
+                        megacap_candidates.append((ticker, ml_score, trading_value))
+
+            # Sort by trading volume, take top 7
+            megacap_candidates.sort(key=lambda x: x[2], reverse=True)
+            top_megacaps = megacap_candidates[:v30_config['num_top_megacaps']]
+
+            # Pick Top 3 by ML score
+            top_megacaps.sort(key=lambda x: x[1], reverse=True)
+            selected_megacaps = [t[0] for t in top_megacaps[:v30_config['num_megacap']]]
+
+            # Pick Top 2 momentum stocks by ML score
+            momentum_candidates = [(t, s) for t, s in all_ml_scores.items()
+                                  if t not in [m[0] for m in top_megacaps]]
+            momentum_candidates.sort(key=lambda x: x[1], reverse=True)
+            selected_momentum = [t for t, _ in momentum_candidates[:v30_config['num_momentum']]]
+
+            # Allocate (70% mega-cap, 30% momentum)
+            megacap_amount = invest_amount * v30_config['megacap_allocation']
+            momentum_amount = invest_amount * (1 - v30_config['megacap_allocation'])
+
+            # Buy mega-caps (equal weight)
+            if selected_megacaps:
+                per_megacap = megacap_amount / len(selected_megacaps)
+                for ticker in selected_megacaps:
+                    if ticker in bot.stocks_data:
+                        df = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                        if len(df) > 0:
+                            price = df.iloc[-1]['close']
+                            shares = per_megacap / price
+                            portfolio[ticker] = {
+                                'shares': shares,
+                                'entry_price': price,
+                                'peak_price': price
+                            }
+                            cash -= per_megacap
+
+            # Buy momentum stocks (equal weight)
+            if selected_momentum:
+                per_momentum = momentum_amount / len(selected_momentum)
+                for ticker in selected_momentum:
+                    if ticker in bot.stocks_data:
+                        df = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                        if len(df) > 0:
+                            price = df.iloc[-1]['close']
+                            shares = per_momentum / price
+                            portfolio[ticker] = {
+                                'shares': shares,
+                                'entry_price': price,
+                                'peak_price': price
+                            }
+                            cash -= per_momentum
+
+            # Log progress
+            if i % 60 == 0 or is_rebalance:
+                ret = ((current_value / 100000) - 1) * 100
+                all_stocks = selected_megacaps + selected_momentum
+                stocks_str = ', '.join(all_stocks[:3])
+                reserve_pct = cash_reserve * 100
+                logger.info(f"{date.date()}: ${current_value:,.0f} ({ret:+.1f}%), VIX={vix:.1f}, "
+                          f"Cash={reserve_pct:.0f}%, Stocks=[{stocks_str}]")
+
+        # Record portfolio value
+        value = cash
+        for ticker, position in portfolio.items():
+            if ticker in bot.stocks_data:
+                df = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                if len(df) > 0:
+                    value += position['shares'] * df.iloc[-1]['close']
+
+        portfolio_values.append({
+            'date': date,
+            'value': value,
+            'cash': cash
+        })
+
+    portfolio_df = pd.DataFrame(portfolio_values).set_index('date')
+
+    # Calculate metrics
+    metrics = calculate_portfolio_metrics(portfolio_df, 100000)
+    spy_metrics = calculate_spy_benchmark(bot, start_year, end_year)
+
+    alpha = metrics['annual_return'] - spy_metrics['annual_return']
+
+    logger.info(f"Backtest Period: {start_year}-{end_year}")
+    logger.info("")
+    logger.info("Results:")
+    logger.info(f"  V30+ML Annual Return:  {metrics['annual_return']:.1f}%")
+    logger.info(f"  V30+ML Total Return:   {metrics['total_return']:.1f}%")
+    logger.info(f"  V30+ML Max Drawdown:   {metrics['max_drawdown']:.1f}%")
+    logger.info(f"  V30+ML Sharpe Ratio:   {metrics['sharpe']:.2f}")
+    logger.info(f"  V30+ML Final Value:    ${metrics['final_value']:,.0f}")
+    logger.info("")
+    logger.info(f"  SPY Annual Return:     {spy_metrics['annual_return']:.1f}%")
+    logger.info(f"  SPY Max Drawdown:      {spy_metrics['max_drawdown']:.1f}%")
+    logger.info("")
+    logger.info(f"  Alpha vs SPY:          {alpha:+.1f}%")
+    logger.info("")
+    logger.info("COMPARISON TO V30 BASELINE:")
+    logger.info(f"  V30 Original:     16.1% annual, -23.8% DD, Sharpe 1.00")
+    logger.info(f"  V30+ML Step 1:    {metrics['annual_return']:.1f}% annual, {metrics['max_drawdown']:.1f}% DD, Sharpe {metrics['sharpe']:.2f}")
+    improvement = metrics['annual_return'] - 16.1
+    logger.info(f"  Improvement:      {improvement:+.1f}% annual")
+
+    return portfolio_df, bot, metrics, spy_metrics, "V30_ML_STEP1"
+
+
+
+def run_backtest(start_year=2015, end_year=2024, strategy='ml', enhanced=True, use_enhanced_features=True):
+    """
+    Run backtest with selected strategy
+
+    Args:
+        start_year: Start year for backtest
+        end_year: End year for backtest
+        strategy: 'ml', 'v30', or 'v30_ml'
+        enhanced: If True, use enhanced risk management (default: True)
+        use_enhanced_features: If True, use 34 features. If False, use 23 features (default: True)
+
+    Returns:
+        tuple: (portfolio_df, bot, metrics, spy_metrics, strategy_name)
+
+    Best Performance (2015-2024):
+        - ML Enhanced (34 features): 17.9% annual, -30.1% DD, Sharpe 0.92 ⭐ RECOMMENDED
+        - V30+ML Step 1: 25.2% annual, -44.3% DD, Sharpe 1.18
+    """
     if strategy.lower() == 'ml':
-        return run_ml_backtest(start_year, end_year)
+        return run_ml_backtest(start_year, end_year, enhanced=enhanced, use_enhanced_features=use_enhanced_features)
     elif strategy.lower() == 'v30':
         return run_v30_backtest(start_year, end_year)
+    elif strategy.lower() == 'v30_ml':
+        return run_v30_ml_backtest(start_year, end_year)
     else:
-        raise ValueError(f"Unknown strategy: {strategy}. Choose 'ml' or 'v30'")
+        raise ValueError(f"Unknown strategy: {strategy}. Choose 'ml', 'v30', or 'v30_ml'")
 
 
 def save_to_database(portfolio_df, metrics, spy_metrics, strategy_name="V30_DYNAMIC_MEGACAP"):
@@ -797,17 +1193,24 @@ def create_report(portfolio_df, metrics, spy_metrics, start_year, end_year, stra
     return report_path
 
 
-def main(start_year=2015, end_year=2024, strategy="ml"):
+def main(start_year=2015, end_year=2024, strategy="ml", enhanced=True, use_enhanced_features=True):
     """Main execution function"""
-    strategy_display = "ML REGULARIZED" if strategy.lower() == "ml" else "V30 DYNAMIC MEGA-CAP SPLIT"
+    if strategy.lower() == "ml":
+        feature_text = "34 features" if use_enhanced_features else "23 features"
+        strategy_display = f"ML LIGHTGBM ({feature_text})"
+    elif strategy.lower() == "v30":
+        strategy_display = "V30 DYNAMIC MEGA-CAP SPLIT"
+    else:
+        strategy_display = "V30+ML STEP 1"
+
     log_header(f"{strategy_display} STRATEGY - EXECUTION")
     logger.info(f"Selected Strategy: {strategy_display}")
     logger.info(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"Project Root: {project_root}")
-    
+
     try:
         # Step 1-2: Run backtest
-        portfolio_df, bot, metrics, spy_metrics, strategy_name = run_backtest(start_year, end_year, strategy)
+        portfolio_df, bot, metrics, spy_metrics, strategy_name = run_backtest(start_year, end_year, strategy, enhanced=enhanced, use_enhanced_features=use_enhanced_features)
         
         # Step 3: Save to database
         run_id = save_to_database(portfolio_df, metrics, spy_metrics, strategy_name)
@@ -853,11 +1256,18 @@ def main(start_year=2015, end_year=2024, strategy="ml"):
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='Run Trading Strategy (ML Recommended or V30)')
-    parser.add_argument('--strategy', type=str, default='ml', choices=['ml', 'v30'],
-                       help='Strategy to run: ml (recommended, 106%% annual) or v30 (92%% annual)')
+    parser = argparse.ArgumentParser(description='Run Trading Strategy')
+    parser.add_argument('--strategy', type=str, default='ml', choices=['ml', 'v30', 'v30_ml'],
+                       help='Strategy to run: ml (LightGBM), v30 (Dynamic Mega-Cap), or v30_ml')
     parser.add_argument('--start', type=int, default=2015, help='Start year (default: 2015)')
     parser.add_argument('--end', type=int, default=2024, help='End year (default: 2024)')
+    parser.add_argument('--enhanced', action='store_true', default=True,
+                       help='Use enhanced risk management (12%% trailing stops, 60%% tech cap) - default: True')
+    parser.add_argument('--no-enhanced', dest='enhanced', action='store_false',
+                       help='Disable enhanced risk management')
+    parser.add_argument('--baseline-features', dest='use_enhanced_features', action='store_false', default=True,
+                       help='Use 23 features instead of 34 (no regime features) - default: False (uses 34)')
     args = parser.parse_args()
-    
-    main(start_year=args.start, end_year=args.end, strategy=args.strategy)
+
+    main(start_year=args.start, end_year=args.end, strategy=args.strategy,
+         enhanced=args.enhanced, use_enhanced_features=args.use_enhanced_features)

@@ -250,6 +250,9 @@ class PortfolioRotationBot:
         # Load VIX data for regime detection
         self.load_vix_data()
 
+        # Load fundamental metadata for ML features
+        self.load_metadata()
+
         # Build SPY cache after indicators are added
         logger.info("Caching SPY lookback data...")
         self._cache_spy_lookback_data()
@@ -259,7 +262,7 @@ class PortfolioRotationBot:
     def load_vix_data(self):
         """
         V8: Load VIX volatility index data
-        
+
         VIX is a forward-looking fear indicator (implied volatility)
         Better than lagging indicators like 200-day MA for regime detection
         """
@@ -267,16 +270,50 @@ class PortfolioRotationBot:
             vix_path = f"{self.data_dir}/VIX.csv"
             vix_df = pd.read_csv(vix_path, index_col=0, parse_dates=True)
             vix_df.columns = [col.lower() for col in vix_df.columns]
-            
+
             # Drop NaN values from the proxy
             vix_df = vix_df.dropna()
-            
+
             self.vix_data = vix_df
             logger.info(f"Loaded VIX data: {len(vix_df)} days")
         except Exception as e:
             logger.warning(f"Could not load VIX data: {e}")
             logger.warning("Will fall back to adaptive regime detection")
             self.vix_data = None
+
+    def load_metadata(self):
+        """
+        Load fundamental data from metadata JSON files
+
+        Metadata includes: P/E ratio, EPS, beta, dividend yield, market cap, etc.
+        Used by ML models to add fundamental features alongside technical indicators.
+        """
+        import json
+        self.metadata = {}
+
+        # Metadata directory is parallel to data directory
+        metadata_dir = os.path.join(os.path.dirname(self.data_dir), 'metadata')
+
+        if not os.path.exists(metadata_dir):
+            logger.warning(f"Metadata directory not found: {metadata_dir}")
+            logger.warning("ML model will use technical features only")
+            return
+
+        loaded_count = 0
+        for ticker in self.stocks_data.keys():
+            json_path = os.path.join(metadata_dir, f'{ticker}.json')
+            try:
+                with open(json_path, 'r') as f:
+                    self.metadata[ticker] = json.load(f)
+                    loaded_count += 1
+            except FileNotFoundError:
+                # Ticker has no metadata - will use defaults in ML model
+                self.metadata[ticker] = None
+            except Exception as e:
+                logger.warning(f"Could not load metadata for {ticker}: {e}")
+                self.metadata[ticker] = None
+
+        logger.info(f"Loaded metadata for {loaded_count}/{len(self.stocks_data)} stocks")
 
     def _build_sector_peer_cache(self):
         """

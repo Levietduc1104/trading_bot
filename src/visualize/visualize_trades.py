@@ -16,8 +16,8 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from src.backtest.portfolio_bot_demo import PortfolioRotationBot
-from src.strategies.v29_mega_cap_split import V29Strategy
 from src.strategies.v30_dynamic_megacap import V30Strategy
+from src.strategies.ml_stock_ranker_lgbm import LGBMStockRanker
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -614,26 +614,325 @@ def track_trades_v30(bot, start_year=2015, end_year=2024):
     return trades
 
 
+def track_trades_v30_ml(bot, start_year=2015, end_year=2024):
+    """
+    Track all trades during V30+ML Step 1 backtest (PRODUCTION STRATEGY)
 
-def create_trade_visualizations():
-    """Create comprehensive multi-tab trading visualizations"""
+    V30+ML Step 1 Strategy:
+    - ML stock selection using LightGBM (34 features: 13 technical + 11 fundamental + 5 volume + 3 regime + 2 additional)
+    - Dynamically identifies top 7 mega-caps using trading value
+    - 70% allocation to Top 3 ML-selected Mega-Caps (from Mag 7)
+    - 30% allocation to Top 2 ML-selected Momentum stocks
+    - VIX-based cash reserves (5-70%)
+    - 12% trailing stop losses (enhanced from 15%)
+    - Progressive drawdown control
+    """
+
+    # LightGBM configuration (production settings with 34 features)
+    ml_config = {
+        'n_estimators': 100,
+        'max_depth': 5,
+        'learning_rate': 0.05,
+        'min_child_samples': 20,
+        'subsample': 0.8,
+        'colsample_bytree': 0.8,
+        'reg_alpha': 0.1,
+        'reg_lambda': 0.1,
+        'sample_interval': 63,
+        'retrain_months': 6,
+        'use_regime_features': True,  # Use all 34 features (13 tech + 11 fundamental + 5 volume + 3 regime + 2 additional)
+    }
+
+    # V30 configuration (enhanced trailing stop)
+    config = {
+        'megacap_allocation': 0.70,
+        'num_megacap': 3,
+        'num_momentum': 2,
+        'trailing_stop': 0.12,  # 12% trailing stop (enhanced from 15%)
+        'num_top_megacaps': 7,
+        'lookback_trading_value': 20,
+    }
+
+    # Initialize ML ranker
+    ranker = LGBMStockRanker(config=ml_config)
+
+    first_ticker = list(bot.stocks_data.keys())[0]
+    all_dates = bot.stocks_data[first_ticker].index
+    all_dates = all_dates[(all_dates >= f'{start_year}-01-01') & (all_dates <= f'{end_year}-12-31')]
+
+    # Initial ML training
+    initial_train_end = pd.to_datetime(f'{start_year}-01-01') - pd.DateOffset(days=1)
+    logger.info(f"Training ML model up to {initial_train_end.date()} for visualization...")
+    ranker.train(bot.stocks_data, bot.stocks_data.get('SPY'), initial_train_end, bot.metadata if hasattr(bot, 'metadata') else None)
+
+    cash = bot.initial_capital
+    holdings = {}
+    trades = []
+    last_rebalance = None
+    portfolio_peak = bot.initial_capital
+
+    MAG7_CANDIDATES = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'AMZN', 'TSLA']
+
+    def score_stocks_at_date(date):
+        """Score all stocks using ML at a specific date"""
+        stock_features = {}
+        for ticker, df in bot.stocks_data.items():
+            if ticker in ['SPY', 'VIX']:
+                continue
+            df_at_date = df[df.index <= date]
+            if len(df_at_date) < 200:
+                continue
+            spy_slice = bot.stocks_data.get('SPY')
+            if spy_slice is not None:
+                spy_slice = spy_slice[spy_slice.index <= date]
+            ticker_metadata = bot.metadata.get(ticker) if hasattr(bot, 'metadata') else None
+            features = ranker.extract_features(ticker, df_at_date, spy_slice, ticker_metadata)
+            if features is not None:
+                stock_features[ticker] = features
+        return ranker.predict_scores(stock_features)
+
+    for date in all_dates:
+        # Calculate current portfolio value
+        current_value = cash
+        for ticker in holdings:
+            df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+            if len(df_at_date) > 0:
+                current_price = df_at_date.iloc[-1]['close']
+                current_value += holdings[ticker]['shares'] * current_price
+
+        portfolio_peak = max(portfolio_peak, current_value)
+
+        # Check trailing stops (daily)
+        for ticker in list(holdings.keys()):
+            df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+            if len(df_at_date) > 0:
+                current_price = df_at_date.iloc[-1]['close']
+                holdings[ticker]['peak_price'] = max(holdings[ticker]['peak_price'], current_price)
+
+                # 12% trailing stop (enhanced from 15%)
+                stop_price = holdings[ticker]['peak_price'] * (1 - config['trailing_stop'])
+                if current_price < stop_price:
+                    shares = holdings[ticker]['shares']
+                    value = shares * current_price
+                    cash += value
+
+                    trades.append({
+                        'date': date,
+                        'ticker': ticker,
+                        'action': 'SELL',
+                        'price': current_price,
+                        'shares': shares,
+                        'value': value,
+                        'reason': 'TRAILING_STOP'
+                    })
+                    del holdings[ticker]
+
+        # Check if should retrain ML model
+        if ranker.should_retrain(date):
+            train_end = date - pd.DateOffset(days=1)
+            ranker.train(bot.stocks_data, bot.stocks_data.get('SPY'), train_end, bot.metadata if hasattr(bot, 'metadata') else None)
+
+        # Monthly rebalancing (day 7-15)
+        is_rebalance = (
+            last_rebalance is None or
+            ((date.year, date.month) != (last_rebalance.year, last_rebalance.month) and 7 <= date.day <= 15)
+        )
+
+        if is_rebalance:
+            last_rebalance = date
+
+            # Sell all holdings
+            for ticker in list(holdings.keys()):
+                df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                if len(df_at_date) > 0:
+                    price = df_at_date.iloc[-1]['close']
+                    shares = holdings[ticker]['shares']
+                    value = shares * price
+                    cash += value
+
+                    trades.append({
+                        'date': date,
+                        'ticker': ticker,
+                        'action': 'SELL',
+                        'price': price,
+                        'shares': shares,
+                        'value': value,
+                        'reason': 'REBALANCE'
+                    })
+            holdings = {}
+
+            # Get VIX for cash reserve calculation
+            vix = 20
+            if bot.vix_data is not None:
+                vix_at_date = bot.vix_data[bot.vix_data.index <= date]
+                if len(vix_at_date) > 0:
+                    vix = vix_at_date.iloc[-1]['close']
+
+            # VIX-based cash reserve (5-70%)
+            if vix < 15:
+                cash_reserve = 0.05
+            elif vix < 20:
+                cash_reserve = 0.10
+            elif vix < 25:
+                cash_reserve = 0.20
+            elif vix < 30:
+                cash_reserve = 0.35
+            elif vix < 40:
+                cash_reserve = 0.50
+            else:
+                cash_reserve = 0.70
+
+            # Determine regime
+            if cash_reserve <= 0.10:
+                regime = 'BULLISH'
+            elif cash_reserve <= 0.35:
+                regime = 'NEUTRAL'
+            else:
+                regime = 'BEARISH'
+
+            # Progressive drawdown control
+            portfolio_drawdown = ((current_value - portfolio_peak) / portfolio_peak) * 100
+            if portfolio_drawdown < -5:
+                drawdown_multiplier = 0.90
+            elif portfolio_drawdown < -10:
+                drawdown_multiplier = 0.75
+            elif portfolio_drawdown < -15:
+                drawdown_multiplier = 0.50
+            elif portfolio_drawdown < -20:
+                drawdown_multiplier = 0.25
+            else:
+                drawdown_multiplier = 1.0
+
+            invest_amount = current_value * (1 - cash_reserve) * drawdown_multiplier
+
+            # Score ALL stocks with ML
+            all_ml_scores = score_stocks_at_date(date)
+
+            # Identify top mega-caps by trading volume
+            megacap_candidates = []
+            for ticker in MAG7_CANDIDATES:
+                if ticker in bot.stocks_data and ticker in all_ml_scores:
+                    df = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df) >= config['lookback_trading_value']:
+                        trading_value = (df['close'] * df['volume']).iloc[-config['lookback_trading_value']:].mean()
+                        ml_score = all_ml_scores[ticker]
+                        megacap_candidates.append((ticker, ml_score, trading_value))
+
+            # Sort by trading volume, take top 7
+            megacap_candidates.sort(key=lambda x: x[2], reverse=True)
+            top_megacaps_by_volume = megacap_candidates[:config['num_top_megacaps']]
+
+            # Pick Top 3 by ML score
+            top_megacaps_by_volume.sort(key=lambda x: x[1], reverse=True)
+            selected_megacaps = [(t[0], t[1]) for t in top_megacaps_by_volume[:config['num_megacap']]]
+
+            # Pick Top 2 momentum stocks by ML score (excluding mega-caps)
+            momentum_candidates = [(t, s) for t, s in all_ml_scores.items()
+                                  if t not in [m[0] for m in top_megacaps_by_volume]]
+            momentum_candidates.sort(key=lambda x: x[1], reverse=True)
+            selected_momentum = momentum_candidates[:config['num_momentum']]
+
+            # Allocate 70% to mega-caps, 30% to momentum
+            megacap_amount = invest_amount * config['megacap_allocation']
+            momentum_amount = invest_amount * (1 - config['megacap_allocation'])
+
+            # Buy mega-cap stocks (equal weight within allocation)
+            if selected_megacaps:
+                per_megacap = megacap_amount / len(selected_megacaps)
+                for ticker, ml_score in selected_megacaps:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        shares = per_megacap / price
+                        holdings[ticker] = {
+                            'shares': shares,
+                            'entry_price': price,
+                            'peak_price': price
+                        }
+                        cash -= per_megacap
+
+                        trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'BUY',
+                            'price': price,
+                            'shares': shares,
+                            'value': per_megacap,
+                            'score': ml_score,
+                            'category': 'MEGACAP_ML'
+                        })
+
+            # Buy momentum stocks (equal weight within allocation)
+            if selected_momentum:
+                per_mom = momentum_amount / len(selected_momentum)
+                for ticker, ml_score in selected_momentum:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        shares = per_mom / price
+                        holdings[ticker] = {
+                            'shares': shares,
+                            'entry_price': price,
+                            'peak_price': price
+                        }
+                        cash -= per_mom
+
+                        trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'BUY',
+                            'price': price,
+                            'shares': shares,
+                            'value': per_mom,
+                            'score': ml_score,
+                            'category': 'MOMENTUM_ML'
+                        })
+
+            # Record portfolio state
+            trades.append({
+                'date': date,
+                'ticker': 'PORTFOLIO',
+                'action': 'HOLDINGS',
+                'holdings': list(holdings.keys()),
+                'cash': cash,
+                'cash_reserve': cash_reserve,
+                'market_regime': regime,
+                'vix': vix,
+                'megacaps': [m[0] for m in top_megacaps_by_volume[:3]]  # Top 3 by volume
+            })
+
+    return trades
+
+
+
+def create_trade_visualizations(run_id=None):
+    """Create comprehensive multi-tab trading visualizations
+
+    Args:
+        run_id: Specific run to visualize. If None, uses latest run.
+    """
 
     logger.info("="*80)
     logger.info("CREATING MULTI-TAB TRADING DASHBOARD")
     logger.info("="*80)
 
-    # Read data from database (latest run)
+    # Read data from database (latest run or specific run)
     import sqlite3
     script_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(script_dir, '..', '..', 'output', 'data', 'trading_results.db')
 
     conn = sqlite3.connect(db_path)
 
-    # Get latest run
-    latest_run = pd.read_sql_query("""
-        SELECT * FROM backtest_runs
-        ORDER BY id DESC LIMIT 1
-    """, conn)
+    # Get latest run or specific run
+    if run_id is None:
+        latest_run = pd.read_sql_query("""
+            SELECT * FROM backtest_runs
+            ORDER BY id DESC LIMIT 1
+        """, conn)
+    else:
+        latest_run = pd.read_sql_query(f"""
+            SELECT * FROM backtest_runs WHERE id = {run_id}
+        """, conn)
 
     run_id = latest_run['id'].iloc[0]
     initial_capital = latest_run['initial_capital'].iloc[0]
@@ -656,13 +955,22 @@ def create_trade_visualizations():
     logger.info(f"  Data points: {len(portfolio_df)}")
     logger.info(f"  Period: {portfolio_df.index[0].date()} to {portfolio_df.index[-1].date()}")
 
-    # For Tab 1 (trading analysis), we still need to run a minimal backtest to get trade logs
-    # But we use the portfolio_df from database for Tab 2 (performance charts)
+    # For Tab 1 (trading analysis), we need to run a backtest to get trade logs
+    # Strategy selection based on database strategy field
+    strategy_name = latest_run['strategy'].iloc[0]
     data_dir = os.path.join(script_dir, '..', '..', 'sp500_data', 'stock_data_1990_2024_top500')
     bot = PortfolioRotationBot(data_dir=data_dir, initial_capital=initial_capital)
     bot.prepare_data()
     bot.score_all_stocks()
-    trades_log = track_trades_v30(bot, start_year=2015, end_year=2024)
+
+    # Select appropriate tracking function based on strategy
+    if 'V30_ML' in strategy_name or 'ML_STEP1' in strategy_name:
+        logger.info(f"  Using V30+ML tracking for strategy: {strategy_name}")
+        trades_log = track_trades_v30_ml(bot, start_year=2015, end_year=2024)
+    else:
+        # Default to V30 tracking for V30 and other strategies
+        logger.info(f"  Using V30 tracking for strategy: {strategy_name}")
+        trades_log = track_trades_v30(bot, start_year=2015, end_year=2024)
     
     # Create output file
     output_path = os.path.join(script_dir, "trading_analysis.html")
@@ -2374,7 +2682,13 @@ def get_most_traded_stocks(trades_log, top_n=6):
 
 
 if __name__ == "__main__":
-    create_trade_visualizations()
+    import argparse
+    parser = argparse.ArgumentParser(description='Create trading visualizations')
+    parser.add_argument('--run_id', type=int, default=None,
+                       help='Specific run ID to visualize (default: latest run)')
+    args = parser.parse_args()
+
+    create_trade_visualizations(run_id=args.run_id)
 
 
 def create_strategy_comparison_visualization(output_path='output/strategy_comparison_bokeh.html'):
