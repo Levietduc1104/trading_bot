@@ -23,7 +23,7 @@ class LGBMStockRanker:
     def __init__(self, config=None):
         self.config = config or {}
         self.lookback_months = 36
-        self.forward_return_days = 21
+        self.forward_return_days = 21  # 21-day prediction horizon
         self.retrain_frequency = 3
 
         # LightGBM parameters (optimized for stock prediction)
