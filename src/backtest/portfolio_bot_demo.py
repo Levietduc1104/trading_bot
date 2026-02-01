@@ -126,6 +126,8 @@ class PortfolioRotationBot:
     def load_all_stocks(self):
         """Load all stock data with parallel processing and dtype optimization"""
         csv_files = glob.glob(f"{self.data_dir}/*.csv")
+        # Filter out duplicate files with " 2.csv" suffix (backup/duplicate data)
+        csv_files = [f for f in csv_files if not f.endswith(" 2.csv")]
         logger.info(f"Loading {len(csv_files)} stocks in parallel...")
 
         # Determine optimal number of worker processes

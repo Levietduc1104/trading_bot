@@ -37,7 +37,25 @@ class TransactionCostModel:
                 'per_share': 0.0,
                 'minimum': 0.0,
                 'maximum': 0.0
+            },
+            'schwab': {
+                'per_share': 0.0,
+                'minimum': 0.0,
+                'maximum': 0.0
+            },
+            'fidelity': {
+                'per_share': 0.0,
+                'minimum': 0.0,
+                'maximum': 0.0
             }
+        }
+
+        # Hidden costs for "zero-commission" brokers (payment for order flow)
+        self.pfof_costs = {
+            'interactive_brokers': 0.0,  # No PFOF, best execution
+            'robinhood': 0.0015,  # ~0.15% worse execution due to PFOF
+            'schwab': 0.0008,     # ~0.08% worse execution
+            'fidelity': 0.0007    # ~0.07% worse execution
         }
 
     def estimate_spread(self, ticker, price, market_cap_category='mid'):
@@ -131,14 +149,15 @@ class TransactionCostModel:
             slippage_pct: Expected slippage as percentage
         """
         if order_type == 'market':
-            # Market orders: 0.05% - 0.20% slippage
-            base_slippage = 0.001  # 0.1%
-            # Higher volatility = more slippage
-            vol_adjustment = volatility * 2.0
+            # Market orders: 0.01% - 0.10% slippage for large caps
+            # Base slippage is very small for liquid stocks
+            base_slippage = 0.0002  # 0.02% base
+            # Volatility adds minor adjustment (capped)
+            vol_adjustment = min(volatility * 0.3, 0.0008)  # Max 0.08% from volatility
             return base_slippage + vol_adjustment
         else:
             # Limit orders: lower slippage but risk of non-execution
-            return 0.0005  # 0.05%
+            return 0.0001  # 0.01%
 
     def calculate_commission(self, shares, price):
         """
@@ -199,8 +218,11 @@ class TransactionCostModel:
         # 4. Commission
         commission = self.calculate_commission(shares, price)
 
+        # 5. Payment for Order Flow (PFOF) cost for zero-commission brokers
+        pfof_cost = shares * price * self.pfof_costs.get(self.broker, 0.0)
+
         # Total
-        total_cost = spread_cost + impact_cost + slippage_cost + commission
+        total_cost = spread_cost + impact_cost + slippage_cost + commission + pfof_cost
         trade_value = shares * price
         total_cost_pct = (total_cost / trade_value) * 100 if trade_value > 0 else 0
 
@@ -209,9 +231,10 @@ class TransactionCostModel:
             'impact_cost': impact_cost,
             'slippage_cost': slippage_cost,
             'commission': commission,
+            'pfof_cost': pfof_cost,
             'total_cost': total_cost,
             'total_cost_pct': total_cost_pct,
-            'effective_price': price * (1 + spread + impact + slippage) + (commission / shares)
+            'effective_price': price * (1 + spread + impact + slippage) + (commission / shares) + (pfof_cost / shares)
         }
 
     def round_trip_cost(self, ticker, shares, price, avg_daily_volume,
