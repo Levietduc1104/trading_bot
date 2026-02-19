@@ -4,13 +4,12 @@ Strategies Module
 Contains trading strategy implementations.
 """
 
-from .v30_dynamic_megacap import V30Strategy, calculate_metrics
-from .ml_stock_ranker_lgbm import LGBMStockRanker
-from .ml_stock_ranker_simple import MLStockRanker
+from .v31_enhanced import V31EnhancedStrategy
+from .v31_tier2_growth_scoring import V31Tier2GrowthScoringStrategy
+from .enhanced_position_sizing import EnhancedPositionSizer
 
 __all__ = [
-    'V30Strategy',
-    'calculate_metrics',
-    'LGBMStockRanker',
-    'MLStockRanker'
+    'V31EnhancedStrategy',
+    'V31Tier2GrowthScoringStrategy',
+    'EnhancedPositionSizer'
 ]

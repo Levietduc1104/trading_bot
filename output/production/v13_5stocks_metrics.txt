@@ -1,0 +1,40 @@
+V13 PRODUCTION STRATEGY - 5 STOCK CONCENTRATION
+================================================================================
+Generated: 2025-12-30 01:29:01
+
+CONFIGURATION:
+  Portfolio: Top 5 stocks
+  Rebalancing: Monthly (day 7-10)
+  Regime Detection: VIX-based (5% to 70% cash)
+  Position Weighting: Momentum-strength (VIX adaptive)
+  Drawdown Control: Progressive (100% to 25%)
+  Trading Fees: 0.1% per trade
+
+PERFORMANCE:
+  Annual Return: 9.8%
+  Max Drawdown: -19.1%
+  Sharpe Ratio: 1.07
+  Win Rate: 16/20 (80%)
+  Volatility: 8.8%
+
+YEARLY RETURNS:
+  2005:    3.1% ✅
+  2006:    5.0% ✅
+  2007:   27.0% ✅
+  2008:   -7.2% ❌
+  2009:   -6.0% ❌
+  2010:    9.1% ✅
+  2011:   21.3% ✅
+  2012:   11.0% ✅
+  2013:   13.1% ✅
+  2014:   14.5% ✅
+  2015:   12.6% ✅
+  2016:   20.5% ✅
+  2017:   11.9% ✅
+  2018:   -3.0% ❌
+  2019:   10.6% ✅
+  2020:   -6.9% ❌
+  2021:   16.4% ✅
+  2022:   15.5% ✅
+  2023:   27.3% ✅
+  2024:    7.5% ✅

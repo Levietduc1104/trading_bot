@@ -1,0 +1,4 @@
+Strategy,Total Return,Annual Return,Max Drawdown,Sharpe Ratio,2022 Return,Win Rate,Final Value
+Dual Model (Risk+Money),68.78%,5.46%,-23.70%,0.50,-16.35%,52.79%,"$168,627"
+V30 Dynamic,330.40%,15.99%,-23.76%,0.99,-18.25%,55.09%,"$430,013"
+SPY Benchmark,214.22%,12.34%,-33.72%,0.75,-19.95%,54.44%,"$314,217"
