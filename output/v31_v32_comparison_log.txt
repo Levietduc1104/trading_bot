@@ -1,0 +1,1444 @@
+INFO: Loading stock data...
+INFO: Loading 467 stocks in parallel...
+================================================================================
+V31 vs V32 REGIME COMPARISON
+Testing bear market improvements
+================================================================================
+
+📋 V31 Baseline Configuration:
+   Trailing stop: 15%
+   VIX crisis threshold: 35
+   Covered calls: Always enabled (1% quarterly)
+
+📋 V32 Bear-Protected Configuration:
+   Trailing stop: 18% (WIDER)
+   VIX crisis threshold: 35
+   Enhanced VIX cash reserves:
+      VIX 15-20: 15% cash (vs 10%)
+      VIX 20-25: 30% cash (vs 20%)
+      VIX 30-35: 50% cash (vs 35%)
+      VIX 35-40: 65% cash (vs 50%)
+      VIX 40+:   80% cash (vs 70%)
+
+📊 Loading data...
+INFO: Loaded 467 stocks
+INFO: Building date index cache...
+INFO: Building date index cache...
+INFO: Date index cache built for 467 stocks
+INFO: Building sector peer cache...
+INFO: Building sector peer cache...
+INFO: Built sector peer cache for 11 sectors
+INFO: Calculating indicators...
+INFO: Loaded VIX data: 8778 days
+INFO: Loaded metadata for 464/467 stocks
+INFO: Caching SPY lookback data...
+INFO: Caching SPY lookback data...
+INFO: Built SPY return cache for 4 periods
+INFO: Data preparation complete
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $1,004.04 (1.0% of $100,404)
+INFO:      Total premium to date: $2,004.04
+INFO:   💰 Covered calls premium collected: $1,065.14 (1.0% of $106,514)
+INFO:      Total premium to date: $3,069.17
+INFO:   💰 Covered calls premium collected: $1,137.13 (1.0% of $113,713)
+INFO:      Total premium to date: $4,206.30
+INFO:   💰 Covered calls premium collected: $1,180.69 (1.0% of $118,069)
+INFO:      Total premium to date: $5,386.99
+INFO:   💰 Covered calls premium collected: $1,280.11 (1.0% of $128,011)
+INFO:      Total premium to date: $6,667.10
+INFO:   💰 Covered calls premium collected: $1,339.09 (1.0% of $133,909)
+INFO:      Total premium to date: $8,006.20
+INFO:   💰 Covered calls premium collected: $1,285.52 (1.0% of $128,552)
+INFO:      Total premium to date: $9,291.71
+INFO:   💰 Covered calls premium collected: $1,397.51 (1.0% of $139,751)
+INFO:      Total premium to date: $10,689.22
+INFO:   💰 Covered calls premium collected: $1,408.03 (1.0% of $140,803)
+INFO:      Total premium to date: $12,097.26
+INFO:   💰 Covered calls premium collected: $1,456.92 (1.0% of $145,692)
+INFO:      Total premium to date: $13,554.18
+INFO:   💰 Covered calls premium collected: $1,472.94 (1.0% of $147,294)
+INFO:      Total premium to date: $15,027.13
+INFO:   💰 Covered calls premium collected: $1,576.01 (1.0% of $157,601)
+INFO:      Total premium to date: $16,603.13
+INFO:   💰 Covered calls premium collected: $1,554.06 (1.0% of $155,406)
+INFO:      Total premium to date: $18,157.19
+INFO:   💰 Covered calls premium collected: $1,574.40 (1.0% of $157,440)
+INFO:      Total premium to date: $19,731.59
+INFO:   💰 Covered calls premium collected: $1,579.45 (1.0% of $157,945)
+INFO:      Total premium to date: $21,311.04
+INFO:   💰 Covered calls premium collected: $1,471.95 (1.0% of $147,195)
+INFO:      Total premium to date: $22,782.99
+INFO:   💰 Covered calls premium collected: $1,554.15 (1.0% of $155,415)
+INFO:      Total premium to date: $24,337.14
+INFO:   💰 Covered calls premium collected: $1,507.95 (1.0% of $150,795)
+INFO:      Total premium to date: $25,845.09
+INFO:   💰 Covered calls premium collected: $1,481.22 (1.0% of $148,122)
+INFO:      Total premium to date: $27,326.31
+INFO:   💰 Covered calls premium collected: $1,569.44 (1.0% of $156,944)
+INFO:      Total premium to date: $28,895.75
+INFO:   💰 Covered calls premium collected: $1,654.76 (1.0% of $165,476)
+INFO:      Total premium to date: $30,550.51
+INFO:   💰 Covered calls premium collected: $1,916.41 (1.0% of $191,641)
+INFO:      Total premium to date: $32,466.92
+INFO:   💰 Covered calls premium collected: $1,955.85 (1.0% of $195,585)
+INFO:      Total premium to date: $34,422.76
+INFO:   💰 Covered calls premium collected: $1,874.28 (1.0% of $187,428)
+INFO:      Total premium to date: $36,297.04
+INFO:   💰 Covered calls premium collected: $1,940.17 (1.0% of $194,017)
+INFO:      Total premium to date: $38,237.21
+INFO:   💰 Covered calls premium collected: $1,960.62 (1.0% of $196,062)
+INFO:      Total premium to date: $40,197.83
+INFO:   💰 Covered calls premium collected: $1,899.47 (1.0% of $189,947)
+INFO:      Total premium to date: $42,097.30
+INFO:   💰 Covered calls premium collected: $1,976.82 (1.0% of $197,682)
+INFO:      Total premium to date: $44,074.12
+INFO:   💰 Covered calls premium collected: $2,285.38 (1.0% of $228,538)
+INFO:      Total premium to date: $46,359.49
+INFO:   💰 Covered calls premium collected: $2,221.75 (1.0% of $222,175)
+INFO:      Total premium to date: $48,581.25
+INFO:   💰 Covered calls premium collected: $2,261.24 (1.0% of $226,124)
+INFO:      Total premium to date: $50,842.49
+INFO:   💰 Covered calls premium collected: $2,245.00 (1.0% of $224,500)
+INFO:      Total premium to date: $53,087.49
+INFO:   💰 Covered calls premium collected: $2,321.65 (1.0% of $232,165)
+INFO:      Total premium to date: $55,409.14
+INFO:   💰 Covered calls premium collected: $2,701.99 (1.0% of $270,199)
+INFO:      Total premium to date: $58,111.13
+INFO:   💰 Covered calls premium collected: $2,912.34 (1.0% of $291,234)
+INFO:      Total premium to date: $61,023.47
+INFO:   💰 Covered calls premium collected: $3,253.67 (1.0% of $325,367)
+INFO:      Total premium to date: $64,277.14
+INFO:   💰 Covered calls premium collected: $3,085.42 (1.0% of $308,542)
+INFO:      Total premium to date: $67,362.56
+INFO:   💰 Covered calls premium collected: $3,176.24 (1.0% of $317,624)
+INFO:      Total premium to date: $70,538.80
+INFO:   💰 Covered calls premium collected: $3,243.58 (1.0% of $324,358)
+INFO:      Total premium to date: $73,782.38
+INFO:   💰 Covered calls premium collected: $3,275.22 (1.0% of $327,522)
+INFO:      Total premium to date: $77,057.59
+INFO:   💰 Covered calls premium collected: $2,962.28 (1.0% of $296,228)
+INFO:      Total premium to date: $80,019.87
+INFO:   💰 Covered calls premium collected: $2,964.44 (1.0% of $296,444)
+INFO:      Total premium to date: $82,984.32
+INFO:   💰 Covered calls premium collected: $2,890.61 (1.0% of $289,061)
+INFO:      Total premium to date: $85,874.93
+INFO:   💰 Covered calls premium collected: $2,968.19 (1.0% of $296,819)
+INFO:      Total premium to date: $88,843.12
+INFO:   💰 Covered calls premium collected: $3,192.76 (1.0% of $319,276)
+INFO:      Total premium to date: $92,035.88
+INFO:   💰 Covered calls premium collected: $3,374.62 (1.0% of $337,462)
+INFO:      Total premium to date: $95,410.50
+INFO:   💰 Covered calls premium collected: $3,449.53 (1.0% of $344,953)
+INFO:      Total premium to date: $98,860.03
+INFO:   💰 Covered calls premium collected: $3,477.84 (1.0% of $347,784)
+INFO:      Total premium to date: $102,337.87
+INFO:   💰 Covered calls premium collected: $3,565.35 (1.0% of $356,535)
+INFO:      Total premium to date: $105,903.22
+INFO:   💰 Covered calls premium collected: $3,318.07 (1.0% of $331,807)
+INFO:      Total premium to date: $109,221.30
+INFO:   💰 Covered calls premium collected: $3,496.19 (1.0% of $349,619)
+INFO:      Total premium to date: $112,717.48
+INFO:   💰 Covered calls premium collected: $3,731.88 (1.0% of $373,188)
+INFO:      Total premium to date: $116,449.36
+INFO:   💰 Covered calls premium collected: $3,966.49 (1.0% of $396,649)
+INFO:      Total premium to date: $120,415.85
+INFO:   💰 Covered calls premium collected: $4,158.08 (1.0% of $415,808)
+INFO:      Total premium to date: $124,573.93
+INFO:   💰 Covered calls premium collected: $4,080.94 (1.0% of $408,094)
+INFO:      Total premium to date: $128,654.87
+INFO:   💰 Covered calls premium collected: $4,006.91 (1.0% of $400,691)
+INFO:      Total premium to date: $132,661.79
+INFO:   💰 Covered calls premium collected: $4,318.44 (1.0% of $431,844)
+INFO:      Total premium to date: $136,980.23
+INFO:   💰 Covered calls premium collected: $4,612.86 (1.0% of $461,286)
+INFO:      Total premium to date: $141,593.09
+INFO:   💰 Covered calls premium collected: $4,605.16 (1.0% of $460,516)
+INFO:      Total premium to date: $146,198.26
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $1,004.04 (1.0% of $100,404)
+INFO:      Total premium to date: $2,004.04
+INFO:   💰 Covered calls premium collected: $1,065.14 (1.0% of $106,514)
+INFO:      Total premium to date: $3,069.17
+INFO:   💰 Covered calls premium collected: $1,137.13 (1.0% of $113,713)
+INFO:      Total premium to date: $4,206.30
+INFO:   💰 Covered calls premium collected: $1,180.69 (1.0% of $118,069)
+INFO:      Total premium to date: $5,386.99
+INFO:   💰 Covered calls premium collected: $1,280.11 (1.0% of $128,011)
+INFO:      Total premium to date: $6,667.10
+INFO:   💰 Covered calls premium collected: $1,339.09 (1.0% of $133,909)
+INFO:      Total premium to date: $8,006.20
+INFO:   💰 Covered calls premium collected: $1,285.52 (1.0% of $128,552)
+INFO:      Total premium to date: $9,291.71
+INFO:   💰 Covered calls premium collected: $1,397.51 (1.0% of $139,751)
+INFO:      Total premium to date: $10,689.22
+INFO:   💰 Covered calls premium collected: $1,403.37 (1.0% of $140,337)
+INFO:      Total premium to date: $12,092.60
+INFO:   💰 Covered calls premium collected: $1,452.10 (1.0% of $145,210)
+INFO:      Total premium to date: $13,544.70
+INFO:   💰 Covered calls premium collected: $1,468.07 (1.0% of $146,807)
+INFO:      Total premium to date: $15,012.76
+INFO:   💰 Covered calls premium collected: $1,570.79 (1.0% of $157,079)
+INFO:      Total premium to date: $16,583.55
+INFO:   💰 Covered calls premium collected: $1,548.91 (1.0% of $154,891)
+INFO:      Total premium to date: $18,132.46
+INFO:   💰 Covered calls premium collected: $1,569.18 (1.0% of $156,918)
+INFO:      Total premium to date: $19,701.64
+INFO:   💰 Covered calls premium collected: $1,574.22 (1.0% of $157,422)
+INFO:      Total premium to date: $21,275.86
+INFO:   💰 Covered calls premium collected: $1,454.44 (1.0% of $145,444)
+INFO:      Total premium to date: $22,730.30
+INFO:   💰 Covered calls premium collected: $1,535.66 (1.0% of $153,566)
+INFO:      Total premium to date: $24,265.96
+INFO:   💰 Covered calls premium collected: $1,495.98 (1.0% of $149,598)
+INFO:      Total premium to date: $25,761.94
+INFO:   💰 Covered calls premium collected: $1,469.60 (1.0% of $146,960)
+INFO:      Total premium to date: $27,231.54
+INFO:   💰 Covered calls premium collected: $1,557.13 (1.0% of $155,713)
+INFO:      Total premium to date: $28,788.68
+INFO:   💰 Covered calls premium collected: $1,641.78 (1.0% of $164,178)
+INFO:      Total premium to date: $30,430.46
+INFO:   💰 Covered calls premium collected: $1,901.38 (1.0% of $190,138)
+INFO:      Total premium to date: $32,331.84
+INFO:   💰 Covered calls premium collected: $1,940.51 (1.0% of $194,051)
+INFO:      Total premium to date: $34,272.35
+INFO:   💰 Covered calls premium collected: $1,859.58 (1.0% of $185,958)
+INFO:      Total premium to date: $36,131.93
+INFO:   💰 Covered calls premium collected: $1,924.96 (1.0% of $192,496)
+INFO:      Total premium to date: $38,056.89
+INFO:   💰 Covered calls premium collected: $1,945.25 (1.0% of $194,525)
+INFO:      Total premium to date: $40,002.13
+INFO:   💰 Covered calls premium collected: $1,896.98 (1.0% of $189,698)
+INFO:      Total premium to date: $41,899.12
+INFO:   💰 Covered calls premium collected: $1,973.84 (1.0% of $197,384)
+INFO:      Total premium to date: $43,872.95
+INFO:   💰 Covered calls premium collected: $2,281.93 (1.0% of $228,193)
+INFO:      Total premium to date: $46,154.88
+INFO:   💰 Covered calls premium collected: $2,216.86 (1.0% of $221,686)
+INFO:      Total premium to date: $48,371.74
+INFO:   💰 Covered calls premium collected: $2,256.26 (1.0% of $225,626)
+INFO:      Total premium to date: $50,628.00
+INFO:   💰 Covered calls premium collected: $2,234.99 (1.0% of $223,499)
+INFO:      Total premium to date: $52,862.99
+INFO:   💰 Covered calls premium collected: $2,311.29 (1.0% of $231,129)
+INFO:      Total premium to date: $55,174.28
+INFO:   💰 Covered calls premium collected: $2,689.93 (1.0% of $268,993)
+INFO:      Total premium to date: $57,864.21
+INFO:   💰 Covered calls premium collected: $2,899.35 (1.0% of $289,935)
+INFO:      Total premium to date: $60,763.56
+INFO:   💰 Covered calls premium collected: $3,239.15 (1.0% of $323,915)
+INFO:      Total premium to date: $64,002.71
+INFO:   💰 Covered calls premium collected: $3,016.12 (1.0% of $301,612)
+INFO:      Total premium to date: $67,018.83
+INFO:   💰 Covered calls premium collected: $3,104.87 (1.0% of $310,487)
+INFO:      Total premium to date: $70,123.70
+INFO:   💰 Covered calls premium collected: $3,166.99 (1.0% of $316,699)
+INFO:      Total premium to date: $73,290.68
+INFO:   💰 Covered calls premium collected: $3,198.18 (1.0% of $319,818)
+INFO:      Total premium to date: $76,488.86
+INFO:   💰 Covered calls premium collected: $2,932.19 (1.0% of $293,219)
+INFO:      Total premium to date: $79,421.05
+INFO:   💰 Covered calls premium collected: $2,933.92 (1.0% of $293,392)
+INFO:      Total premium to date: $82,354.97
+INFO:   💰 Covered calls premium collected: $2,860.85 (1.0% of $286,085)
+INFO:      Total premium to date: $85,215.82
+INFO:   💰 Covered calls premium collected: $2,937.63 (1.0% of $293,763)
+INFO:      Total premium to date: $88,153.46
+INFO:   💰 Covered calls premium collected: $3,159.88 (1.0% of $315,988)
+INFO:      Total premium to date: $91,313.34
+INFO:   💰 Covered calls premium collected: $3,356.62 (1.0% of $335,662)
+INFO:      Total premium to date: $94,669.96
+INFO:   💰 Covered calls premium collected: $3,430.82 (1.0% of $343,082)
+INFO:      Total premium to date: $98,100.78
+INFO:   💰 Covered calls premium collected: $3,458.98 (1.0% of $345,898)
+INFO:      Total premium to date: $101,559.75
+INFO:   💰 Covered calls premium collected: $3,546.02 (1.0% of $354,602)
+INFO:      Total premium to date: $105,105.77
+INFO:   💰 Covered calls premium collected: $3,300.07 (1.0% of $330,007)
+INFO:      Total premium to date: $108,405.84
+INFO:   💰 Covered calls premium collected: $3,477.22 (1.0% of $347,722)
+INFO:      Total premium to date: $111,883.07
+INFO:   💰 Covered calls premium collected: $3,711.64 (1.0% of $371,164)
+INFO:      Total premium to date: $115,594.70
+INFO:   💰 Covered calls premium collected: $3,944.97 (1.0% of $394,497)
+INFO:      Total premium to date: $119,539.68
+INFO:   💰 Covered calls premium collected: $4,135.53 (1.0% of $413,553)
+INFO:      Total premium to date: $123,675.21
+INFO:   💰 Covered calls premium collected: $4,058.81 (1.0% of $405,881)
+INFO:      Total premium to date: $127,734.02
+INFO:   💰 Covered calls premium collected: $3,985.18 (1.0% of $398,518)
+INFO:      Total premium to date: $131,719.20
+INFO:   💰 Covered calls premium collected: $4,295.01 (1.0% of $429,501)
+INFO:      Total premium to date: $136,014.21
+INFO:   💰 Covered calls premium collected: $4,587.84 (1.0% of $458,784)
+INFO:      Total premium to date: $140,602.05
+INFO:   💰 Covered calls premium collected: $4,580.19 (1.0% of $458,019)
+INFO:      Total premium to date: $145,182.24
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $986.95 (1.0% of $98,695)
+INFO:      Total premium to date: $1,986.95
+INFO:   💰 Covered calls premium collected: $957.15 (1.0% of $95,715)
+INFO:      Total premium to date: $2,944.10
+INFO:   💰 Covered calls premium collected: $1,014.59 (1.0% of $101,459)
+INFO:      Total premium to date: $3,958.69
+INFO:   💰 Covered calls premium collected: $1,063.13 (1.0% of $106,313)
+INFO:      Total premium to date: $5,021.82
+INFO:   💰 Covered calls premium collected: $1,048.11 (1.0% of $104,811)
+INFO:      Total premium to date: $6,069.93
+INFO:   💰 Covered calls premium collected: $1,020.75 (1.0% of $102,075)
+INFO:      Total premium to date: $7,090.68
+INFO:   💰 Covered calls premium collected: $1,121.45 (1.0% of $112,145)
+INFO:      Total premium to date: $8,212.13
+INFO:   💰 Covered calls premium collected: $1,213.05 (1.0% of $121,305)
+INFO:      Total premium to date: $9,425.18
+INFO:   💰 Covered calls premium collected: $1,241.19 (1.0% of $124,119)
+INFO:      Total premium to date: $10,666.37
+INFO:   💰 Covered calls premium collected: $1,278.63 (1.0% of $127,863)
+INFO:      Total premium to date: $11,945.00
+INFO:   💰 Covered calls premium collected: $1,316.61 (1.0% of $131,661)
+INFO:      Total premium to date: $13,261.60
+INFO:   💰 Covered calls premium collected: $1,349.85 (1.0% of $134,985)
+INFO:      Total premium to date: $14,611.45
+INFO:   💰 Covered calls premium collected: $1,226.86 (1.0% of $122,686)
+INFO:      Total premium to date: $15,838.31
+INFO:   💰 Covered calls premium collected: $1,318.25 (1.0% of $131,825)
+INFO:      Total premium to date: $17,156.56
+INFO:   💰 Covered calls premium collected: $1,419.04 (1.0% of $141,904)
+INFO:      Total premium to date: $18,575.60
+INFO:   💰 Covered calls premium collected: $1,340.13 (1.0% of $134,013)
+INFO:      Total premium to date: $19,915.73
+INFO:   💰 Covered calls premium collected: $1,316.85 (1.0% of $131,685)
+INFO:      Total premium to date: $21,232.59
+INFO:   💰 Covered calls premium collected: $1,321.76 (1.0% of $132,176)
+INFO:      Total premium to date: $22,554.35
+INFO:   💰 Covered calls premium collected: $1,343.29 (1.0% of $134,329)
+INFO:      Total premium to date: $23,897.63
+INFO:   💰 Covered calls premium collected: $1,308.53 (1.0% of $130,853)
+INFO:      Total premium to date: $25,206.16
+INFO:   💰 Covered calls premium collected: $1,383.31 (1.0% of $138,331)
+INFO:      Total premium to date: $26,589.47
+INFO:   💰 Covered calls premium collected: $1,550.18 (1.0% of $155,018)
+INFO:      Total premium to date: $28,139.65
+INFO:   💰 Covered calls premium collected: $1,526.85 (1.0% of $152,685)
+INFO:      Total premium to date: $29,666.50
+INFO:   💰 Covered calls premium collected: $1,659.38 (1.0% of $165,938)
+INFO:      Total premium to date: $31,325.87
+INFO:   💰 Covered calls premium collected: $1,705.22 (1.0% of $170,522)
+INFO:      Total premium to date: $33,031.09
+INFO:   💰 Covered calls premium collected: $1,710.33 (1.0% of $171,033)
+INFO:      Total premium to date: $34,741.42
+INFO:   💰 Covered calls premium collected: $1,700.26 (1.0% of $170,026)
+INFO:      Total premium to date: $36,441.69
+INFO:   💰 Covered calls premium collected: $1,666.78 (1.0% of $166,678)
+INFO:      Total premium to date: $38,108.46
+INFO:   💰 Covered calls premium collected: $1,624.16 (1.0% of $162,416)
+INFO:      Total premium to date: $39,732.62
+INFO:   💰 Covered calls premium collected: $1,728.60 (1.0% of $172,860)
+INFO:      Total premium to date: $41,461.22
+INFO:   💰 Covered calls premium collected: $1,568.48 (1.0% of $156,848)
+INFO:      Total premium to date: $43,029.70
+INFO:   💰 Covered calls premium collected: $1,670.37 (1.0% of $167,037)
+INFO:      Total premium to date: $44,700.07
+INFO:   💰 Covered calls premium collected: $1,663.07 (1.0% of $166,307)
+INFO:      Total premium to date: $46,363.14
+INFO:   💰 Covered calls premium collected: $1,685.24 (1.0% of $168,524)
+INFO:      Total premium to date: $48,048.38
+INFO:   💰 Covered calls premium collected: $1,690.38 (1.0% of $169,038)
+INFO:      Total premium to date: $49,738.76
+INFO:   💰 Covered calls premium collected: $1,677.50 (1.0% of $167,750)
+INFO:      Total premium to date: $51,416.26
+INFO:   💰 Covered calls premium collected: $1,795.99 (1.0% of $179,599)
+INFO:      Total premium to date: $53,212.26
+INFO:   💰 Covered calls premium collected: $1,900.62 (1.0% of $190,062)
+INFO:      Total premium to date: $55,112.87
+INFO:   💰 Covered calls premium collected: $2,028.18 (1.0% of $202,818)
+INFO:      Total premium to date: $57,141.05
+INFO:   💰 Covered calls premium collected: $1,905.65 (1.0% of $190,565)
+INFO:      Total premium to date: $59,046.70
+INFO:   💰 Covered calls premium collected: $1,890.10 (1.0% of $189,010)
+INFO:      Total premium to date: $60,936.80
+INFO:   💰 Covered calls premium collected: $1,971.35 (1.0% of $197,135)
+INFO:      Total premium to date: $62,908.15
+INFO:   💰 Covered calls premium collected: $2,042.39 (1.0% of $204,239)
+INFO:      Total premium to date: $64,950.54
+INFO:   💰 Covered calls premium collected: $2,166.93 (1.0% of $216,693)
+INFO:      Total premium to date: $67,117.47
+INFO:   💰 Covered calls premium collected: $2,348.64 (1.0% of $234,864)
+INFO:      Total premium to date: $69,466.11
+INFO:   💰 Covered calls premium collected: $2,137.08 (1.0% of $213,708)
+INFO:      Total premium to date: $71,603.19
+INFO:   💰 Covered calls premium collected: $2,376.30 (1.0% of $237,630)
+INFO:      Total premium to date: $73,979.50
+INFO:   💰 Covered calls premium collected: $2,621.39 (1.0% of $262,139)
+INFO:      Total premium to date: $76,600.88
+INFO:   💰 Covered calls premium collected: $2,691.76 (1.0% of $269,176)
+INFO:      Total premium to date: $79,292.64
+INFO:   💰 Covered calls premium collected: $2,848.67 (1.0% of $284,867)
+INFO:      Total premium to date: $82,141.32
+INFO:   💰 Covered calls premium collected: $2,768.60 (1.0% of $276,860)
+INFO:      Total premium to date: $84,909.91
+INFO:   💰 Covered calls premium collected: $2,981.71 (1.0% of $298,171)
+INFO:      Total premium to date: $87,891.62
+INFO:   💰 Covered calls premium collected: $3,092.14 (1.0% of $309,214)
+INFO:      Total premium to date: $90,983.76
+INFO:   💰 Covered calls premium collected: $3,092.31 (1.0% of $309,231)
+INFO:      Total premium to date: $94,076.07
+INFO:   💰 Covered calls premium collected: $3,230.41 (1.0% of $323,041)
+INFO:      Total premium to date: $97,306.47
+INFO:   💰 Covered calls premium collected: $3,358.12 (1.0% of $335,812)
+INFO:      Total premium to date: $100,664.60
+INFO:   💰 Covered calls premium collected: $3,628.31 (1.0% of $362,831)
+INFO:      Total premium to date: $104,292.90
+INFO:   💰 Covered calls premium collected: $3,606.25 (1.0% of $360,625)
+INFO:      Total premium to date: $107,899.16
+INFO:   💰 Covered calls premium collected: $3,783.91 (1.0% of $378,391)
+INFO:      Total premium to date: $111,683.07
+INFO:   💰 Covered calls premium collected: $4,029.01 (1.0% of $402,901)
+INFO:      Total premium to date: $115,712.08
+INFO:   💰 Covered calls premium collected: $4,328.80 (1.0% of $432,880)
+INFO:      Total premium to date: $120,040.88
+INFO:   💰 Covered calls premium collected: $4,604.30 (1.0% of $460,430)
+INFO:      Total premium to date: $124,645.18
+INFO:   💰 Covered calls premium collected: $4,184.82 (1.0% of $418,482)
+INFO:      Total premium to date: $128,830.00
+INFO:   💰 Covered calls premium collected: $4,261.54 (1.0% of $426,154)
+INFO:      Total premium to date: $133,091.54
+INFO:   💰 Covered calls premium collected: $4,598.95 (1.0% of $459,895)
+INFO:      Total premium to date: $137,690.49
+INFO:   💰 Covered calls premium collected: $4,908.40 (1.0% of $490,840)
+INFO:      Total premium to date: $142,598.88
+INFO:   💰 Covered calls premium collected: $4,858.30 (1.0% of $485,830)
+INFO:      Total premium to date: $147,457.18
+INFO:   💰 Covered calls premium collected: $5,191.04 (1.0% of $519,104)
+INFO:      Total premium to date: $152,648.22
+INFO:   💰 Covered calls premium collected: $5,001.65 (1.0% of $500,165)
+INFO:      Total premium to date: $157,649.87
+INFO:   💰 Covered calls premium collected: $5,272.12 (1.0% of $527,212)
+INFO:      Total premium to date: $162,921.99
+INFO:   💰 Covered calls premium collected: $5,303.67 (1.0% of $530,367)
+INFO:      Total premium to date: $168,225.66
+INFO:   💰 Covered calls premium collected: $5,404.28 (1.0% of $540,428)
+INFO:      Total premium to date: $173,629.94
+INFO:   💰 Covered calls premium collected: $5,338.48 (1.0% of $533,848)
+INFO:      Total premium to date: $178,968.42
+INFO:   💰 Covered calls premium collected: $5,631.82 (1.0% of $563,182)
+INFO:      Total premium to date: $184,600.24
+INFO:   💰 Covered calls premium collected: $5,624.53 (1.0% of $562,453)
+INFO:      Total premium to date: $190,224.77
+INFO:   💰 Covered calls premium collected: $5,693.74 (1.0% of $569,374)
+INFO:      Total premium to date: $195,918.50
+INFO:   💰 Covered calls premium collected: $5,912.13 (1.0% of $591,213)
+INFO:      Total premium to date: $201,830.63
+INFO:   💰 Covered calls premium collected: $6,024.98 (1.0% of $602,498)
+INFO:      Total premium to date: $207,855.61
+INFO:   💰 Covered calls premium collected: $6,854.04 (1.0% of $685,404)
+INFO:      Total premium to date: $214,709.65
+INFO:   💰 Covered calls premium collected: $6,448.15 (1.0% of $644,815)
+INFO:      Total premium to date: $221,157.80
+INFO:   💰 Covered calls premium collected: $6,569.83 (1.0% of $656,983)
+INFO:      Total premium to date: $227,727.63
+INFO:   💰 Covered calls premium collected: $6,922.84 (1.0% of $692,284)
+INFO:      Total premium to date: $234,650.47
+INFO:   💰 Covered calls premium collected: $7,137.80 (1.0% of $713,780)
+INFO:      Total premium to date: $241,788.27
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $1,029.33 (1.0% of $102,933)
+INFO:      Total premium to date: $2,029.33
+INFO:   💰 Covered calls premium collected: $987.94 (1.0% of $98,794)
+INFO:      Total premium to date: $3,017.27
+INFO:   💰 Covered calls premium collected: $1,052.72 (1.0% of $105,272)
+INFO:      Total premium to date: $4,069.99
+INFO:   💰 Covered calls premium collected: $1,103.05 (1.0% of $110,305)
+INFO:      Total premium to date: $5,173.04
+INFO:   💰 Covered calls premium collected: $1,087.92 (1.0% of $108,792)
+INFO:      Total premium to date: $6,260.96
+INFO:   💰 Covered calls premium collected: $1,055.08 (1.0% of $105,508)
+INFO:      Total premium to date: $7,316.04
+INFO:   💰 Covered calls premium collected: $1,159.09 (1.0% of $115,909)
+INFO:      Total premium to date: $8,475.14
+INFO:   💰 Covered calls premium collected: $1,253.77 (1.0% of $125,377)
+INFO:      Total premium to date: $9,728.90
+INFO:   💰 Covered calls premium collected: $1,304.42 (1.0% of $130,442)
+INFO:      Total premium to date: $11,033.32
+INFO:   💰 Covered calls premium collected: $1,351.98 (1.0% of $135,198)
+INFO:      Total premium to date: $12,385.30
+INFO:   💰 Covered calls premium collected: $1,391.98 (1.0% of $139,198)
+INFO:      Total premium to date: $13,777.28
+INFO:   💰 Covered calls premium collected: $1,427.12 (1.0% of $142,712)
+INFO:      Total premium to date: $15,204.40
+INFO:   💰 Covered calls premium collected: $1,306.13 (1.0% of $130,613)
+INFO:      Total premium to date: $16,510.53
+INFO:   💰 Covered calls premium collected: $1,403.25 (1.0% of $140,325)
+INFO:      Total premium to date: $17,913.78
+INFO:   💰 Covered calls premium collected: $1,510.53 (1.0% of $151,053)
+INFO:      Total premium to date: $19,424.31
+INFO:   💰 Covered calls premium collected: $1,416.11 (1.0% of $141,611)
+INFO:      Total premium to date: $20,840.42
+INFO:   💰 Covered calls premium collected: $1,391.19 (1.0% of $139,119)
+INFO:      Total premium to date: $22,231.62
+INFO:   💰 Covered calls premium collected: $1,396.38 (1.0% of $139,638)
+INFO:      Total premium to date: $23,628.00
+INFO:   💰 Covered calls premium collected: $1,419.12 (1.0% of $141,912)
+INFO:      Total premium to date: $25,047.11
+INFO:   💰 Covered calls premium collected: $1,379.23 (1.0% of $137,923)
+INFO:      Total premium to date: $26,426.34
+INFO:   💰 Covered calls premium collected: $1,458.05 (1.0% of $145,805)
+INFO:      Total premium to date: $27,884.39
+INFO:   💰 Covered calls premium collected: $1,633.94 (1.0% of $163,394)
+INFO:      Total premium to date: $29,518.33
+INFO:   💰 Covered calls premium collected: $1,609.34 (1.0% of $160,934)
+INFO:      Total premium to date: $31,127.67
+INFO:   💰 Covered calls premium collected: $1,749.03 (1.0% of $174,903)
+INFO:      Total premium to date: $32,876.70
+INFO:   💰 Covered calls premium collected: $1,797.35 (1.0% of $179,735)
+INFO:      Total premium to date: $34,674.05
+INFO:   💰 Covered calls premium collected: $1,802.74 (1.0% of $180,274)
+INFO:      Total premium to date: $36,476.79
+INFO:   💰 Covered calls premium collected: $1,792.13 (1.0% of $179,213)
+INFO:      Total premium to date: $38,268.92
+INFO:   💰 Covered calls premium collected: $1,756.83 (1.0% of $175,683)
+INFO:      Total premium to date: $40,025.75
+INFO:   💰 Covered calls premium collected: $1,711.91 (1.0% of $171,191)
+INFO:      Total premium to date: $41,737.66
+INFO:   💰 Covered calls premium collected: $1,822.00 (1.0% of $182,200)
+INFO:      Total premium to date: $43,559.66
+INFO:   💰 Covered calls premium collected: $1,653.43 (1.0% of $165,343)
+INFO:      Total premium to date: $45,213.09
+INFO:   💰 Covered calls premium collected: $1,760.63 (1.0% of $176,063)
+INFO:      Total premium to date: $46,973.71
+INFO:   💰 Covered calls premium collected: $1,752.93 (1.0% of $175,293)
+INFO:      Total premium to date: $48,726.64
+INFO:   💰 Covered calls premium collected: $1,776.29 (1.0% of $177,629)
+INFO:      Total premium to date: $50,502.93
+INFO:   💰 Covered calls premium collected: $1,775.42 (1.0% of $177,542)
+INFO:      Total premium to date: $52,278.35
+INFO:   💰 Covered calls premium collected: $1,793.87 (1.0% of $179,387)
+INFO:      Total premium to date: $54,072.22
+INFO:   💰 Covered calls premium collected: $1,920.49 (1.0% of $192,049)
+INFO:      Total premium to date: $55,992.71
+INFO:   💰 Covered calls premium collected: $2,032.37 (1.0% of $203,237)
+INFO:      Total premium to date: $58,025.09
+INFO:   💰 Covered calls premium collected: $2,168.78 (1.0% of $216,878)
+INFO:      Total premium to date: $60,193.86
+INFO:   💰 Covered calls premium collected: $2,049.11 (1.0% of $204,911)
+INFO:      Total premium to date: $62,242.97
+INFO:   💰 Covered calls premium collected: $2,032.01 (1.0% of $203,201)
+INFO:      Total premium to date: $64,274.98
+INFO:   💰 Covered calls premium collected: $2,119.36 (1.0% of $211,936)
+INFO:      Total premium to date: $66,394.33
+INFO:   💰 Covered calls premium collected: $2,195.73 (1.0% of $219,573)
+INFO:      Total premium to date: $68,590.06
+INFO:   💰 Covered calls premium collected: $2,329.62 (1.0% of $232,962)
+INFO:      Total premium to date: $70,919.68
+INFO:   💰 Covered calls premium collected: $2,524.98 (1.0% of $252,498)
+INFO:      Total premium to date: $73,444.66
+INFO:   💰 Covered calls premium collected: $2,297.53 (1.0% of $229,753)
+INFO:      Total premium to date: $75,742.19
+INFO:   💰 Covered calls premium collected: $2,554.72 (1.0% of $255,472)
+INFO:      Total premium to date: $78,296.90
+INFO:   💰 Covered calls premium collected: $2,818.20 (1.0% of $281,820)
+INFO:      Total premium to date: $81,115.10
+INFO:   💰 Covered calls premium collected: $2,893.86 (1.0% of $289,386)
+INFO:      Total premium to date: $84,008.96
+INFO:   💰 Covered calls premium collected: $3,062.55 (1.0% of $306,255)
+INFO:      Total premium to date: $87,071.51
+INFO:   💰 Covered calls premium collected: $2,976.46 (1.0% of $297,646)
+INFO:      Total premium to date: $90,047.97
+INFO:   💰 Covered calls premium collected: $3,205.57 (1.0% of $320,557)
+INFO:      Total premium to date: $93,253.54
+INFO:   💰 Covered calls premium collected: $3,324.29 (1.0% of $332,429)
+INFO:      Total premium to date: $96,577.83
+INFO:   💰 Covered calls premium collected: $3,324.48 (1.0% of $332,448)
+INFO:      Total premium to date: $99,902.31
+INFO:   💰 Covered calls premium collected: $3,472.94 (1.0% of $347,294)
+INFO:      Total premium to date: $103,375.25
+INFO:   💰 Covered calls premium collected: $3,610.25 (1.0% of $361,025)
+INFO:      Total premium to date: $106,985.50
+INFO:   💰 Covered calls premium collected: $3,900.72 (1.0% of $390,072)
+INFO:      Total premium to date: $110,886.22
+INFO:   💰 Covered calls premium collected: $3,828.87 (1.0% of $382,887)
+INFO:      Total premium to date: $114,715.09
+INFO:   💰 Covered calls premium collected: $4,017.46 (1.0% of $401,746)
+INFO:      Total premium to date: $118,732.55
+INFO:   💰 Covered calls premium collected: $4,277.68 (1.0% of $427,768)
+INFO:      Total premium to date: $123,010.23
+INFO:   💰 Covered calls premium collected: $4,595.98 (1.0% of $459,598)
+INFO:      Total premium to date: $127,606.20
+INFO:   💰 Covered calls premium collected: $4,888.49 (1.0% of $488,849)
+INFO:      Total premium to date: $132,494.69
+INFO:   💰 Covered calls premium collected: $4,381.54 (1.0% of $438,154)
+INFO:      Total premium to date: $136,876.23
+INFO:   💰 Covered calls premium collected: $4,454.88 (1.0% of $445,488)
+INFO:      Total premium to date: $141,331.11
+INFO:   💰 Covered calls premium collected: $4,756.27 (1.0% of $475,627)
+INFO:      Total premium to date: $146,087.37
+INFO:   💰 Covered calls premium collected: $5,076.98 (1.0% of $507,698)
+INFO:      Total premium to date: $151,164.36
+INFO:   💰 Covered calls premium collected: $5,025.16 (1.0% of $502,516)
+INFO:      Total premium to date: $156,189.52
+INFO:   💰 Covered calls premium collected: $5,369.33 (1.0% of $536,933)
+INFO:      Total premium to date: $161,558.85
+INFO:   💰 Covered calls premium collected: $5,173.43 (1.0% of $517,343)
+INFO:      Total premium to date: $166,732.29
+INFO:   💰 Covered calls premium collected: $5,453.20 (1.0% of $545,320)
+INFO:      Total premium to date: $172,185.49
+INFO:   💰 Covered calls premium collected: $5,486.57 (1.0% of $548,657)
+INFO:      Total premium to date: $177,672.06
+INFO:   💰 Covered calls premium collected: $5,589.91 (1.0% of $558,991)
+INFO:      Total premium to date: $183,261.97
+INFO:   💰 Covered calls premium collected: $5,573.90 (1.0% of $557,390)
+INFO:      Total premium to date: $188,835.87
+INFO:   💰 Covered calls premium collected: $5,879.06 (1.0% of $587,906)
+INFO:      Total premium to date: $194,714.93
+INFO:   💰 Covered calls premium collected: $5,871.45 (1.0% of $587,145)
+INFO:      Total premium to date: $200,586.38
+INFO:   💰 Covered calls premium collected: $5,967.54 (1.0% of $596,754)
+INFO:      Total premium to date: $206,553.93
+INFO:   💰 Covered calls premium collected: $6,195.67 (1.0% of $619,567)
+INFO:      Total premium to date: $212,749.60
+INFO:   💰 Covered calls premium collected: $6,313.94 (1.0% of $631,394)
+INFO:      Total premium to date: $219,063.54
+INFO:   💰 Covered calls premium collected: $7,182.76 (1.0% of $718,276)
+INFO:      Total premium to date: $226,246.29
+INFO:   💰 Covered calls premium collected: $6,649.33 (1.0% of $664,933)
+INFO:      Total premium to date: $232,895.62
+INFO:   💰 Covered calls premium collected: $6,774.74 (1.0% of $677,474)
+INFO:      Total premium to date: $239,670.36
+INFO:   💰 Covered calls premium collected: $7,244.73 (1.0% of $724,473)
+INFO:      Total premium to date: $246,915.08
+INFO:   💰 Covered calls premium collected: $7,468.80 (1.0% of $746,880)
+INFO:      Total premium to date: $254,383.88
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $954.98 (1.0% of $95,498)
+INFO:      Total premium to date: $1,954.98
+INFO:   💰 Covered calls premium collected: $994.57 (1.0% of $99,457)
+INFO:      Total premium to date: $2,949.55
+INFO:   💰 Covered calls premium collected: $1,028.16 (1.0% of $102,816)
+INFO:      Total premium to date: $3,977.71
+INFO:   💰 Covered calls premium collected: $965.24 (1.0% of $96,524)
+INFO:      Total premium to date: $4,942.95
+INFO:   💰 Covered calls premium collected: $993.23 (1.0% of $99,323)
+INFO:      Total premium to date: $5,936.18
+INFO:   💰 Covered calls premium collected: $991.08 (1.0% of $99,108)
+INFO:      Total premium to date: $6,927.25
+INFO:   💰 Covered calls premium collected: $1,047.01 (1.0% of $104,701)
+INFO:      Total premium to date: $7,974.26
+INFO:   💰 Covered calls premium collected: $1,068.57 (1.0% of $106,857)
+INFO:      Total premium to date: $9,042.83
+INFO:   💰 Covered calls premium collected: $1,081.70 (1.0% of $108,170)
+INFO:      Total premium to date: $10,124.53
+INFO:   💰 Covered calls premium collected: $1,064.04 (1.0% of $106,404)
+INFO:      Total premium to date: $11,188.57
+INFO:   💰 Covered calls premium collected: $1,110.25 (1.0% of $111,025)
+INFO:      Total premium to date: $12,298.82
+INFO:   💰 Covered calls premium collected: $1,136.54 (1.0% of $113,654)
+INFO:      Total premium to date: $13,435.36
+INFO:   💰 Covered calls premium collected: $1,204.84 (1.0% of $120,484)
+INFO:      Total premium to date: $14,640.20
+INFO:   💰 Covered calls premium collected: $1,261.58 (1.0% of $126,158)
+INFO:      Total premium to date: $15,901.79
+INFO:   💰 Covered calls premium collected: $1,269.74 (1.0% of $126,974)
+INFO:      Total premium to date: $17,171.53
+INFO:   💰 Covered calls premium collected: $1,359.52 (1.0% of $135,952)
+INFO:      Total premium to date: $18,531.05
+INFO:   💰 Covered calls premium collected: $1,424.04 (1.0% of $142,404)
+INFO:      Total premium to date: $19,955.08
+INFO:   💰 Covered calls premium collected: $1,358.12 (1.0% of $135,812)
+INFO:      Total premium to date: $21,313.20
+INFO:   💰 Covered calls premium collected: $1,496.53 (1.0% of $149,653)
+INFO:      Total premium to date: $22,809.73
+INFO:   💰 Covered calls premium collected: $1,506.43 (1.0% of $150,643)
+INFO:      Total premium to date: $24,316.16
+INFO:   💰 Covered calls premium collected: $1,542.79 (1.0% of $154,279)
+INFO:      Total premium to date: $25,858.96
+INFO:   💰 Covered calls premium collected: $1,645.80 (1.0% of $164,580)
+INFO:      Total premium to date: $27,504.76
+INFO:   💰 Covered calls premium collected: $1,650.00 (1.0% of $165,000)
+INFO:      Total premium to date: $29,154.76
+INFO:   💰 Covered calls premium collected: $1,767.93 (1.0% of $176,793)
+INFO:      Total premium to date: $30,922.69
+INFO:   💰 Covered calls premium collected: $1,851.90 (1.0% of $185,190)
+INFO:      Total premium to date: $32,774.59
+INFO:   💰 Covered calls premium collected: $1,998.59 (1.0% of $199,859)
+INFO:      Total premium to date: $34,773.17
+INFO:   💰 Covered calls premium collected: $1,898.78 (1.0% of $189,878)
+INFO:      Total premium to date: $36,671.95
+INFO:   💰 Covered calls premium collected: $2,026.06 (1.0% of $202,606)
+INFO:      Total premium to date: $38,698.01
+INFO:   💰 Covered calls premium collected: $2,145.47 (1.0% of $214,547)
+INFO:      Total premium to date: $40,843.48
+INFO:   💰 Covered calls premium collected: $2,239.80 (1.0% of $223,980)
+INFO:      Total premium to date: $43,083.28
+INFO:   💰 Covered calls premium collected: $2,164.78 (1.0% of $216,478)
+INFO:      Total premium to date: $45,248.06
+INFO:   💰 Covered calls premium collected: $2,165.88 (1.0% of $216,588)
+INFO:      Total premium to date: $47,413.94
+INFO:   💰 Covered calls premium collected: $2,229.38 (1.0% of $222,938)
+INFO:      Total premium to date: $49,643.32
+INFO:   💰 Covered calls premium collected: $2,121.46 (1.0% of $212,146)
+INFO:      Total premium to date: $51,764.78
+INFO:   💰 Covered calls premium collected: $2,094.95 (1.0% of $209,495)
+INFO:      Total premium to date: $53,859.73
+INFO:   💰 Covered calls premium collected: $2,055.04 (1.0% of $205,504)
+INFO:      Total premium to date: $55,914.78
+INFO:   💰 Covered calls premium collected: $2,152.95 (1.0% of $215,295)
+INFO:      Total premium to date: $58,067.73
+INFO:   💰 Covered calls premium collected: $2,183.97 (1.0% of $218,397)
+INFO:      Total premium to date: $60,251.69
+INFO:   💰 Covered calls premium collected: $2,312.55 (1.0% of $231,255)
+INFO:      Total premium to date: $62,564.24
+INFO:   💰 Covered calls premium collected: $2,329.81 (1.0% of $232,981)
+INFO:      Total premium to date: $64,894.05
+INFO:   💰 Covered calls premium collected: $2,307.73 (1.0% of $230,773)
+INFO:      Total premium to date: $67,201.77
+INFO:   💰 Covered calls premium collected: $2,376.73 (1.0% of $237,673)
+INFO:      Total premium to date: $69,578.51
+INFO:   💰 Covered calls premium collected: $2,309.86 (1.0% of $230,986)
+INFO:      Total premium to date: $71,888.37
+INFO:   💰 Covered calls premium collected: $2,389.50 (1.0% of $238,950)
+INFO:      Total premium to date: $74,277.86
+INFO:   💰 Covered calls premium collected: $2,352.13 (1.0% of $235,213)
+INFO:      Total premium to date: $76,630.00
+INFO:   💰 Covered calls premium collected: $2,642.35 (1.0% of $264,235)
+INFO:      Total premium to date: $79,272.35
+INFO:   💰 Covered calls premium collected: $2,727.28 (1.0% of $272,728)
+INFO:      Total premium to date: $81,999.63
+INFO:   💰 Covered calls premium collected: $2,982.52 (1.0% of $298,252)
+INFO:      Total premium to date: $84,982.14
+INFO:   💰 Covered calls premium collected: $3,527.42 (1.0% of $352,742)
+INFO:      Total premium to date: $88,509.56
+INFO:   💰 Covered calls premium collected: $3,327.81 (1.0% of $332,781)
+INFO:      Total premium to date: $91,837.37
+INFO:   💰 Covered calls premium collected: $3,336.06 (1.0% of $333,606)
+INFO:      Total premium to date: $95,173.42
+INFO:   💰 Covered calls premium collected: $3,476.51 (1.0% of $347,651)
+INFO:      Total premium to date: $98,649.93
+INFO:   💰 Covered calls premium collected: $3,582.46 (1.0% of $358,246)
+INFO:      Total premium to date: $102,232.39
+INFO:   💰 Covered calls premium collected: $3,709.60 (1.0% of $370,960)
+INFO:      Total premium to date: $105,941.99
+INFO:   💰 Covered calls premium collected: $3,788.60 (1.0% of $378,860)
+INFO:      Total premium to date: $109,730.59
+INFO:   💰 Covered calls premium collected: $3,863.96 (1.0% of $386,396)
+INFO:      Total premium to date: $113,594.54
+INFO:   💰 Covered calls premium collected: $4,123.71 (1.0% of $412,371)
+INFO:      Total premium to date: $117,718.25
+INFO:   💰 Covered calls premium collected: $4,070.64 (1.0% of $407,064)
+INFO:      Total premium to date: $121,788.89
+INFO:   💰 Covered calls premium collected: $4,236.62 (1.0% of $423,662)
+INFO:      Total premium to date: $126,025.52
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $954.98 (1.0% of $95,498)
+INFO:      Total premium to date: $1,954.98
+INFO:   💰 Covered calls premium collected: $994.57 (1.0% of $99,457)
+INFO:      Total premium to date: $2,949.55
+INFO:   💰 Covered calls premium collected: $1,028.16 (1.0% of $102,816)
+INFO:      Total premium to date: $3,977.71
+INFO:   💰 Covered calls premium collected: $960.06 (1.0% of $96,006)
+INFO:      Total premium to date: $4,937.77
+INFO:   💰 Covered calls premium collected: $987.68 (1.0% of $98,768)
+INFO:      Total premium to date: $5,925.44
+INFO:   💰 Covered calls premium collected: $986.66 (1.0% of $98,666)
+INFO:      Total premium to date: $6,912.10
+INFO:   💰 Covered calls premium collected: $1,042.43 (1.0% of $104,243)
+INFO:      Total premium to date: $7,954.53
+INFO:   💰 Covered calls premium collected: $1,063.91 (1.0% of $106,391)
+INFO:      Total premium to date: $9,018.44
+INFO:   💰 Covered calls premium collected: $1,076.98 (1.0% of $107,698)
+INFO:      Total premium to date: $10,095.41
+INFO:   💰 Covered calls premium collected: $1,059.39 (1.0% of $105,939)
+INFO:      Total premium to date: $11,154.81
+INFO:   💰 Covered calls premium collected: $1,105.41 (1.0% of $110,541)
+INFO:      Total premium to date: $12,260.21
+INFO:   💰 Covered calls premium collected: $1,131.58 (1.0% of $113,158)
+INFO:      Total premium to date: $13,391.79
+INFO:   💰 Covered calls premium collected: $1,199.58 (1.0% of $119,958)
+INFO:      Total premium to date: $14,591.37
+INFO:   💰 Covered calls premium collected: $1,256.08 (1.0% of $125,608)
+INFO:      Total premium to date: $15,847.45
+INFO:   💰 Covered calls premium collected: $1,264.20 (1.0% of $126,420)
+INFO:      Total premium to date: $17,111.64
+INFO:   💰 Covered calls premium collected: $1,353.58 (1.0% of $135,358)
+INFO:      Total premium to date: $18,465.22
+INFO:   💰 Covered calls premium collected: $1,417.82 (1.0% of $141,782)
+INFO:      Total premium to date: $19,883.05
+INFO:   💰 Covered calls premium collected: $1,352.19 (1.0% of $135,219)
+INFO:      Total premium to date: $21,235.23
+INFO:   💰 Covered calls premium collected: $1,490.00 (1.0% of $149,000)
+INFO:      Total premium to date: $22,725.23
+INFO:   💰 Covered calls premium collected: $1,499.85 (1.0% of $149,985)
+INFO:      Total premium to date: $24,225.08
+INFO:   💰 Covered calls premium collected: $1,536.06 (1.0% of $153,606)
+INFO:      Total premium to date: $25,761.14
+INFO:   💰 Covered calls premium collected: $1,638.62 (1.0% of $163,862)
+INFO:      Total premium to date: $27,399.76
+INFO:   💰 Covered calls premium collected: $1,642.79 (1.0% of $164,279)
+INFO:      Total premium to date: $29,042.55
+INFO:   💰 Covered calls premium collected: $1,760.21 (1.0% of $176,021)
+INFO:      Total premium to date: $30,802.76
+INFO:   💰 Covered calls premium collected: $1,843.81 (1.0% of $184,381)
+INFO:      Total premium to date: $32,646.58
+INFO:   💰 Covered calls premium collected: $1,989.86 (1.0% of $198,986)
+INFO:      Total premium to date: $34,636.44
+INFO:   💰 Covered calls premium collected: $1,901.83 (1.0% of $190,183)
+INFO:      Total premium to date: $36,538.27
+INFO:   💰 Covered calls premium collected: $2,028.98 (1.0% of $202,898)
+INFO:      Total premium to date: $38,567.25
+INFO:   💰 Covered calls premium collected: $2,148.56 (1.0% of $214,856)
+INFO:      Total premium to date: $40,715.81
+INFO:   💰 Covered calls premium collected: $2,258.17 (1.0% of $225,817)
+INFO:      Total premium to date: $42,973.97
+INFO:   💰 Covered calls premium collected: $2,161.67 (1.0% of $216,167)
+INFO:      Total premium to date: $45,135.65
+INFO:   💰 Covered calls premium collected: $2,162.76 (1.0% of $216,276)
+INFO:      Total premium to date: $47,298.41
+INFO:   💰 Covered calls premium collected: $2,207.52 (1.0% of $220,752)
+INFO:      Total premium to date: $49,505.93
+INFO:   💰 Covered calls premium collected: $2,080.92 (1.0% of $208,092)
+INFO:      Total premium to date: $51,586.85
+INFO:   💰 Covered calls premium collected: $2,062.43 (1.0% of $206,243)
+INFO:      Total premium to date: $53,649.28
+INFO:   💰 Covered calls premium collected: $2,007.53 (1.0% of $200,753)
+INFO:      Total premium to date: $55,656.81
+INFO:   💰 Covered calls premium collected: $2,103.16 (1.0% of $210,316)
+INFO:      Total premium to date: $57,759.97
+INFO:   💰 Covered calls premium collected: $2,133.47 (1.0% of $213,347)
+INFO:      Total premium to date: $59,893.44
+INFO:   💰 Covered calls premium collected: $2,248.52 (1.0% of $224,852)
+INFO:      Total premium to date: $62,141.96
+INFO:   💰 Covered calls premium collected: $2,265.50 (1.0% of $226,550)
+INFO:      Total premium to date: $64,407.46
+INFO:   💰 Covered calls premium collected: $2,244.03 (1.0% of $224,403)
+INFO:      Total premium to date: $66,651.48
+INFO:   💰 Covered calls premium collected: $2,311.13 (1.0% of $231,113)
+INFO:      Total premium to date: $68,962.61
+INFO:   💰 Covered calls premium collected: $2,240.27 (1.0% of $224,027)
+INFO:      Total premium to date: $71,202.89
+INFO:   💰 Covered calls premium collected: $2,317.50 (1.0% of $231,750)
+INFO:      Total premium to date: $73,520.39
+INFO:   💰 Covered calls premium collected: $2,281.27 (1.0% of $228,127)
+INFO:      Total premium to date: $75,801.66
+INFO:   💰 Covered calls premium collected: $2,536.76 (1.0% of $253,676)
+INFO:      Total premium to date: $78,338.42
+INFO:   💰 Covered calls premium collected: $2,618.51 (1.0% of $261,851)
+INFO:      Total premium to date: $80,956.92
+INFO:   💰 Covered calls premium collected: $2,863.56 (1.0% of $286,356)
+INFO:      Total premium to date: $83,820.49
+INFO:   💰 Covered calls premium collected: $3,407.14 (1.0% of $340,714)
+INFO:      Total premium to date: $87,227.62
+INFO:   💰 Covered calls premium collected: $3,100.68 (1.0% of $310,068)
+INFO:      Total premium to date: $90,328.30
+INFO:   💰 Covered calls premium collected: $3,144.27 (1.0% of $314,427)
+INFO:      Total premium to date: $93,472.58
+INFO:   💰 Covered calls premium collected: $3,276.30 (1.0% of $327,630)
+INFO:      Total premium to date: $96,748.87
+INFO:   💰 Covered calls premium collected: $3,376.15 (1.0% of $337,615)
+INFO:      Total premium to date: $100,125.02
+INFO:   💰 Covered calls premium collected: $3,487.26 (1.0% of $348,726)
+INFO:      Total premium to date: $103,612.28
+INFO:   💰 Covered calls premium collected: $3,561.62 (1.0% of $356,162)
+INFO:      Total premium to date: $107,173.91
+INFO:   💰 Covered calls premium collected: $3,633.19 (1.0% of $363,319)
+INFO:      Total premium to date: $110,807.10
+INFO:   💰 Covered calls premium collected: $3,941.05 (1.0% of $394,105)
+INFO:      Total premium to date: $114,748.15
+INFO:   💰 Covered calls premium collected: $3,934.70 (1.0% of $393,470)
+INFO:      Total premium to date: $118,682.85
+INFO:   💰 Covered calls premium collected: $4,094.58 (1.0% of $409,458)
+INFO:      Total premium to date: $122,777.43
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $1,181.03 (1.0% of $118,103)
+INFO:      Total premium to date: $2,181.03
+INFO:   💰 Covered calls premium collected: $1,114.24 (1.0% of $111,424)
+INFO:      Total premium to date: $3,295.28
+INFO:   💰 Covered calls premium collected: $1,117.01 (1.0% of $111,701)
+INFO:      Total premium to date: $4,412.28
+INFO:   💰 Covered calls premium collected: $1,164.03 (1.0% of $116,403)
+INFO:      Total premium to date: $5,576.32
+INFO:   💰 Covered calls premium collected: $1,199.51 (1.0% of $119,951)
+INFO:      Total premium to date: $6,775.82
+INFO:   💰 Covered calls premium collected: $1,238.99 (1.0% of $123,899)
+INFO:      Total premium to date: $8,014.81
+INFO:   💰 Covered calls premium collected: $1,265.41 (1.0% of $126,541)
+INFO:      Total premium to date: $9,280.22
+INFO:   💰 Covered calls premium collected: $1,290.58 (1.0% of $129,058)
+INFO:      Total premium to date: $10,570.79
+INFO:   💰 Covered calls premium collected: $1,377.33 (1.0% of $137,733)
+INFO:      Total premium to date: $11,948.12
+INFO:   💰 Covered calls premium collected: $1,359.61 (1.0% of $135,961)
+INFO:      Total premium to date: $13,307.73
+INFO:   💰 Covered calls premium collected: $1,415.05 (1.0% of $141,505)
+INFO:      Total premium to date: $14,722.78
+INFO:   💰 Covered calls premium collected: $1,463.42 (1.0% of $146,342)
+INFO:      Total premium to date: $16,186.20
+INFO:   💰 Covered calls premium collected: $1,509.66 (1.0% of $150,966)
+INFO:      Total premium to date: $17,695.86
+INFO:   💰 Covered calls premium collected: $1,485.28 (1.0% of $148,528)
+INFO:      Total premium to date: $19,181.14
+INFO:   💰 Covered calls premium collected: $1,613.88 (1.0% of $161,388)
+INFO:      Total premium to date: $20,795.01
+INFO:   💰 Covered calls premium collected: $1,652.50 (1.0% of $165,250)
+INFO:      Total premium to date: $22,447.51
+INFO:   💰 Covered calls premium collected: $1,698.63 (1.0% of $169,863)
+INFO:      Total premium to date: $24,146.14
+INFO:   💰 Covered calls premium collected: $1,802.25 (1.0% of $180,225)
+INFO:      Total premium to date: $25,948.39
+INFO:   💰 Covered calls premium collected: $1,928.80 (1.0% of $192,880)
+INFO:      Total premium to date: $27,877.19
+INFO:   💰 Covered calls premium collected: $1,939.93 (1.0% of $193,993)
+INFO:      Total premium to date: $29,817.12
+INFO:   💰 Covered calls premium collected: $1,888.64 (1.0% of $188,864)
+INFO:      Total premium to date: $31,705.76
+INFO:   💰 Covered calls premium collected: $2,163.19 (1.0% of $216,319)
+INFO:      Total premium to date: $33,868.95
+INFO:   💰 Covered calls premium collected: $2,157.73 (1.0% of $215,773)
+INFO:      Total premium to date: $36,026.68
+INFO:   💰 Covered calls premium collected: $2,051.16 (1.0% of $205,116)
+INFO:      Total premium to date: $38,077.84
+INFO:   💰 Covered calls premium collected: $1,923.18 (1.0% of $192,318)
+INFO:      Total premium to date: $40,001.02
+INFO:   💰 Covered calls premium collected: $1,887.33 (1.0% of $188,733)
+INFO:      Total premium to date: $41,888.36
+INFO:   💰 Covered calls premium collected: $2,061.18 (1.0% of $206,118)
+INFO:      Total premium to date: $43,949.54
+INFO:   💰 Covered calls premium collected: $1,889.12 (1.0% of $188,912)
+INFO:      Total premium to date: $45,838.66
+INFO:   💰 Covered calls premium collected: $1,882.27 (1.0% of $188,227)
+INFO:      Total premium to date: $47,720.93
+INFO:   💰 Covered calls premium collected: $1,830.34 (1.0% of $183,034)
+INFO:      Total premium to date: $49,551.27
+INFO:   💰 Covered calls premium collected: $1,877.01 (1.0% of $187,701)
+INFO:      Total premium to date: $51,428.28
+INFO:   💰 Covered calls premium collected: $1,852.71 (1.0% of $185,271)
+INFO:      Total premium to date: $53,280.99
+INFO:   💰 Covered calls premium collected: $1,784.49 (1.0% of $178,449)
+INFO:      Total premium to date: $55,065.48
+INFO:   💰 Covered calls premium collected: $1,797.95 (1.0% of $179,795)
+INFO:      Total premium to date: $56,863.43
+INFO:   💰 Covered calls premium collected: $1,867.71 (1.0% of $186,771)
+INFO:      Total premium to date: $58,731.14
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $1,189.01 (1.0% of $118,901)
+INFO:      Total premium to date: $2,189.01
+INFO:   💰 Covered calls premium collected: $1,093.83 (1.0% of $109,383)
+INFO:      Total premium to date: $3,282.85
+INFO:   💰 Covered calls premium collected: $1,109.28 (1.0% of $110,928)
+INFO:      Total premium to date: $4,392.13
+INFO:   💰 Covered calls premium collected: $1,155.86 (1.0% of $115,586)
+INFO:      Total premium to date: $5,547.98
+INFO:   💰 Covered calls premium collected: $1,191.08 (1.0% of $119,108)
+INFO:      Total premium to date: $6,739.06
+INFO:   💰 Covered calls premium collected: $1,230.28 (1.0% of $123,028)
+INFO:      Total premium to date: $7,969.35
+INFO:   💰 Covered calls premium collected: $1,256.52 (1.0% of $125,652)
+INFO:      Total premium to date: $9,225.86
+INFO:   💰 Covered calls premium collected: $1,281.76 (1.0% of $128,176)
+INFO:      Total premium to date: $10,507.63
+INFO:   💰 Covered calls premium collected: $1,390.38 (1.0% of $139,038)
+INFO:      Total premium to date: $11,898.01
+INFO:   💰 Covered calls premium collected: $1,388.14 (1.0% of $138,814)
+INFO:      Total premium to date: $13,286.14
+INFO:   💰 Covered calls premium collected: $1,444.54 (1.0% of $144,454)
+INFO:      Total premium to date: $14,730.68
+INFO:   💰 Covered calls premium collected: $1,493.92 (1.0% of $149,392)
+INFO:      Total premium to date: $16,224.60
+INFO:   💰 Covered calls premium collected: $1,541.12 (1.0% of $154,112)
+INFO:      Total premium to date: $17,765.72
+INFO:   💰 Covered calls premium collected: $1,516.23 (1.0% of $151,623)
+INFO:      Total premium to date: $19,281.96
+INFO:   💰 Covered calls premium collected: $1,647.51 (1.0% of $164,751)
+INFO:      Total premium to date: $20,929.47
+INFO:   💰 Covered calls premium collected: $1,686.94 (1.0% of $168,694)
+INFO:      Total premium to date: $22,616.41
+INFO:   💰 Covered calls premium collected: $1,734.03 (1.0% of $173,403)
+INFO:      Total premium to date: $24,350.44
+INFO:   💰 Covered calls premium collected: $1,839.81 (1.0% of $183,981)
+INFO:      Total premium to date: $26,190.25
+INFO:   💰 Covered calls premium collected: $1,969.00 (1.0% of $196,900)
+INFO:      Total premium to date: $28,159.26
+INFO:   💰 Covered calls premium collected: $1,980.36 (1.0% of $198,036)
+INFO:      Total premium to date: $30,139.61
+INFO:   💰 Covered calls premium collected: $1,928.00 (1.0% of $192,800)
+INFO:      Total premium to date: $32,067.61
+INFO:   💰 Covered calls premium collected: $2,208.28 (1.0% of $220,828)
+INFO:      Total premium to date: $34,275.89
+INFO:   💰 Covered calls premium collected: $2,202.70 (1.0% of $220,270)
+INFO:      Total premium to date: $36,478.60
+INFO:   💰 Covered calls premium collected: $2,141.45 (1.0% of $214,145)
+INFO:      Total premium to date: $38,620.05
+INFO:   💰 Covered calls premium collected: $1,961.31 (1.0% of $196,131)
+INFO:      Total premium to date: $40,581.36
+INFO:   💰 Covered calls premium collected: $1,924.64 (1.0% of $192,464)
+INFO:      Total premium to date: $42,506.00
+INFO:   💰 Covered calls premium collected: $2,101.92 (1.0% of $210,192)
+INFO:      Total premium to date: $44,607.93
+INFO:   💰 Covered calls premium collected: $1,911.29 (1.0% of $191,129)
+INFO:      Total premium to date: $46,519.21
+INFO:   💰 Covered calls premium collected: $1,902.46 (1.0% of $190,246)
+INFO:      Total premium to date: $48,421.67
+INFO:   💰 Covered calls premium collected: $1,853.45 (1.0% of $185,345)
+INFO:      Total premium to date: $50,275.12
+INFO:   💰 Covered calls premium collected: $1,900.61 (1.0% of $190,061)
+INFO:      Total premium to date: $52,175.73
+INFO:   💰 Covered calls premium collected: $1,871.47 (1.0% of $187,147)
+INFO:      Total premium to date: $54,047.20
+INFO:   💰 Covered calls premium collected: $1,806.06 (1.0% of $180,606)
+INFO:      Total premium to date: $55,853.26
+INFO:   💰 Covered calls premium collected: $1,814.13 (1.0% of $181,413)
+INFO:      Total premium to date: $57,667.39
+INFO:   💰 Covered calls premium collected: $1,858.22 (1.0% of $185,822)
+INFO:      Total premium to date: $59,525.61
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $908.71 (1.0% of $90,871)
+INFO:      Total premium to date: $1,908.71
+INFO:   💰 Covered calls premium collected: $886.74 (1.0% of $88,674)
+INFO:      Total premium to date: $2,795.45
+INFO:   💰 Covered calls premium collected: $968.28 (1.0% of $96,828)
+INFO:      Total premium to date: $3,763.73
+INFO:   💰 Covered calls premium collected: $877.47 (1.0% of $87,747)
+INFO:      Total premium to date: $4,641.20
+INFO:   💰 Covered calls premium collected: $874.24 (1.0% of $87,424)
+INFO:      Total premium to date: $5,515.44
+INFO:   💰 Covered calls premium collected: $833.83 (1.0% of $83,383)
+INFO:      Total premium to date: $6,349.27
+INFO:   💰 Covered calls premium collected: $855.07 (1.0% of $85,507)
+INFO:      Total premium to date: $7,204.35
+INFO:   💰 Covered calls premium collected: $844.01 (1.0% of $84,401)
+INFO:      Total premium to date: $8,048.35
+INFO:   💰 Covered calls premium collected: $812.93 (1.0% of $81,293)
+INFO:      Total premium to date: $8,861.28
+INFO:   💰 Covered calls premium collected: $819.06 (1.0% of $81,906)
+INFO:      Total premium to date: $9,680.34
+INFO:   💰 Covered calls premium collected: $850.84 (1.0% of $85,084)
+INFO:      Total premium to date: $10,531.18
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $898.48 (1.0% of $89,848)
+INFO:      Total premium to date: $1,898.48
+INFO:   💰 Covered calls premium collected: $881.81 (1.0% of $88,181)
+INFO:      Total premium to date: $2,780.29
+INFO:   💰 Covered calls premium collected: $963.04 (1.0% of $96,304)
+INFO:      Total premium to date: $3,743.33
+INFO:   💰 Covered calls premium collected: $875.69 (1.0% of $87,569)
+INFO:      Total premium to date: $4,619.02
+INFO:   💰 Covered calls premium collected: $871.65 (1.0% of $87,165)
+INFO:      Total premium to date: $5,490.67
+INFO:   💰 Covered calls premium collected: $833.75 (1.0% of $83,375)
+INFO:      Total premium to date: $6,324.42
+INFO:   💰 Covered calls premium collected: $854.92 (1.0% of $85,492)
+INFO:      Total premium to date: $7,179.34
+INFO:   💰 Covered calls premium collected: $841.81 (1.0% of $84,181)
+INFO:      Total premium to date: $8,021.15
+INFO:   💰 Covered calls premium collected: $812.39 (1.0% of $81,239)
+INFO:      Total premium to date: $8,833.54
+INFO:   💰 Covered calls premium collected: $816.02 (1.0% of $81,602)
+INFO:      Total premium to date: $9,649.56
+INFO:   💰 Covered calls premium collected: $847.68 (1.0% of $84,768)
+INFO:      Total premium to date: $10,497.25
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $908.71 (1.0% of $90,871)
+INFO:      Total premium to date: $1,908.71
+INFO:   💰 Covered calls premium collected: $886.74 (1.0% of $88,674)
+INFO:      Total premium to date: $2,795.45
+INFO:   💰 Covered calls premium collected: $968.28 (1.0% of $96,828)
+INFO:      Total premium to date: $3,763.73
+INFO:   💰 Covered calls premium collected: $877.47 (1.0% of $87,747)
+INFO:      Total premium to date: $4,641.20
+INFO:   💰 Covered calls premium collected: $874.24 (1.0% of $87,424)
+INFO:      Total premium to date: $5,515.44
+INFO:   💰 Covered calls premium collected: $833.83 (1.0% of $83,383)
+INFO:      Total premium to date: $6,349.27
+INFO:   💰 Covered calls premium collected: $855.07 (1.0% of $85,507)
+INFO:      Total premium to date: $7,204.35
+INFO:   💰 Covered calls premium collected: $844.01 (1.0% of $84,401)
+INFO:      Total premium to date: $8,048.35
+INFO:   💰 Covered calls premium collected: $812.93 (1.0% of $81,293)
+INFO:      Total premium to date: $8,861.28
+INFO:   💰 Covered calls premium collected: $819.06 (1.0% of $81,906)
+INFO:      Total premium to date: $9,680.34
+INFO:   💰 Covered calls premium collected: $850.84 (1.0% of $85,084)
+INFO:      Total premium to date: $10,531.18
+INFO:   💰 Covered calls premium collected: $862.15 (1.0% of $86,215)
+INFO:      Total premium to date: $11,393.33
+INFO:   💰 Covered calls premium collected: $982.81 (1.0% of $98,281)
+INFO:      Total premium to date: $12,376.13
+INFO:   💰 Covered calls premium collected: $998.29 (1.0% of $99,829)
+INFO:      Total premium to date: $13,374.42
+INFO:   💰 Covered calls premium collected: $1,110.89 (1.0% of $111,089)
+INFO:      Total premium to date: $14,485.31
+INFO:   💰 Covered calls premium collected: $1,151.97 (1.0% of $115,197)
+INFO:      Total premium to date: $15,637.28
+INFO:   💰 Covered calls premium collected: $1,208.27 (1.0% of $120,827)
+INFO:      Total premium to date: $16,845.55
+INFO:   💰 Covered calls premium collected: $1,293.32 (1.0% of $129,332)
+INFO:      Total premium to date: $18,138.87
+INFO:   💰 Covered calls premium collected: $1,320.76 (1.0% of $132,076)
+INFO:      Total premium to date: $19,459.63
+INFO:   💰 Covered calls premium collected: $1,307.35 (1.0% of $130,735)
+INFO:      Total premium to date: $20,766.98
+INFO:   💰 Covered calls premium collected: $1,303.86 (1.0% of $130,386)
+INFO:      Total premium to date: $22,070.83
+INFO:   💰 Covered calls premium collected: $1,346.24 (1.0% of $134,624)
+INFO:      Total premium to date: $23,417.07
+INFO:   💰 Covered calls premium collected: $1,400.95 (1.0% of $140,095)
+INFO:      Total premium to date: $24,818.02
+INFO:   💰 Covered calls premium collected: $1,448.52 (1.0% of $144,852)
+INFO:      Total premium to date: $26,266.55
+INFO:   💰 Covered calls premium collected: $1,695.42 (1.0% of $169,542)
+INFO:      Total premium to date: $27,961.97
+INFO:   💰 Covered calls premium collected: $1,988.60 (1.0% of $198,860)
+INFO:      Total premium to date: $29,950.57
+INFO:   💰 Covered calls premium collected: $1,942.85 (1.0% of $194,285)
+INFO:      Total premium to date: $31,893.42
+INFO:   💰 Covered calls premium collected: $1,871.00 (1.0% of $187,100)
+INFO:      Total premium to date: $33,764.41
+INFO:   💰 Covered calls premium collected: $2,021.85 (1.0% of $202,185)
+INFO:      Total premium to date: $35,786.27
+INFO:   💰 Covered calls premium collected: $2,150.60 (1.0% of $215,060)
+INFO:      Total premium to date: $37,936.87
+INFO:   💰 Covered calls premium collected: $1,894.20 (1.0% of $189,420)
+INFO:      Total premium to date: $39,831.07
+INFO:   💰 Covered calls premium collected: $1,962.43 (1.0% of $196,243)
+INFO:      Total premium to date: $41,793.50
+INFO:   💰 Covered calls premium collected: $2,015.08 (1.0% of $201,508)
+INFO:      Total premium to date: $43,808.58
+INFO: Covered Calls Manager initialized:
+INFO:   Quarterly premium target: 1.0%
+INFO:   Annual premium target: 4.0%
+INFO:   Days to expiry: 90
+INFO:   OTM %: 5%
+INFO:   Enabled: True
+INFO: ✅ V31 Covered Calls ENABLED - Target: 4% annual premium
+INFO:   💰 Covered calls premium collected: $1,000.00 (1.0% of $100,000)
+INFO:      Total premium to date: $1,000.00
+INFO:   💰 Covered calls premium collected: $898.48 (1.0% of $89,848)
+INFO:      Total premium to date: $1,898.48
+INFO:   💰 Covered calls premium collected: $881.81 (1.0% of $88,181)
+INFO:      Total premium to date: $2,780.29
+INFO:   💰 Covered calls premium collected: $963.04 (1.0% of $96,304)
+INFO:      Total premium to date: $3,743.33
+INFO:   💰 Covered calls premium collected: $875.69 (1.0% of $87,569)
+INFO:      Total premium to date: $4,619.02
+INFO:   💰 Covered calls premium collected: $871.65 (1.0% of $87,165)
+INFO:      Total premium to date: $5,490.67
+INFO:   💰 Covered calls premium collected: $833.75 (1.0% of $83,375)
+INFO:      Total premium to date: $6,324.42
+INFO:   💰 Covered calls premium collected: $854.92 (1.0% of $85,492)
+INFO:      Total premium to date: $7,179.34
+INFO:   💰 Covered calls premium collected: $841.81 (1.0% of $84,181)
+INFO:      Total premium to date: $8,021.15
+INFO:   💰 Covered calls premium collected: $812.39 (1.0% of $81,239)
+INFO:      Total premium to date: $8,833.54
+INFO:   💰 Covered calls premium collected: $816.02 (1.0% of $81,602)
+INFO:      Total premium to date: $9,649.56
+INFO:   💰 Covered calls premium collected: $847.68 (1.0% of $84,768)
+INFO:      Total premium to date: $10,497.25
+INFO:   💰 Covered calls premium collected: $854.05 (1.0% of $85,405)
+INFO:      Total premium to date: $11,351.30
+INFO:   💰 Covered calls premium collected: $936.51 (1.0% of $93,651)
+INFO:      Total premium to date: $12,287.81
+INFO:   💰 Covered calls premium collected: $950.85 (1.0% of $95,085)
+INFO:      Total premium to date: $13,238.65
+INFO:   💰 Covered calls premium collected: $1,058.19 (1.0% of $105,819)
+INFO:      Total premium to date: $14,296.84
+INFO:   💰 Covered calls premium collected: $1,097.32 (1.0% of $109,732)
+INFO:      Total premium to date: $15,394.16
+INFO:   💰 Covered calls premium collected: $1,150.95 (1.0% of $115,095)
+INFO:      Total premium to date: $16,545.11
+INFO:   💰 Covered calls premium collected: $1,245.05 (1.0% of $124,505)
+INFO:      Total premium to date: $17,790.17
+INFO:   💰 Covered calls premium collected: $1,271.74 (1.0% of $127,174)
+INFO:      Total premium to date: $19,061.91
+INFO:   💰 Covered calls premium collected: $1,258.68 (1.0% of $125,868)
+INFO:      Total premium to date: $20,320.58
+INFO:   💰 Covered calls premium collected: $1,255.32 (1.0% of $125,532)
+INFO:      Total premium to date: $21,575.90
+INFO:   💰 Covered calls premium collected: $1,296.12 (1.0% of $129,612)
+INFO:      Total premium to date: $22,872.02
+INFO:   💰 Covered calls premium collected: $1,348.80 (1.0% of $134,880)
+INFO:      Total premium to date: $24,220.82
+INFO:   💰 Covered calls premium collected: $1,394.60 (1.0% of $139,460)
+INFO:      Total premium to date: $25,615.42
+INFO:   💰 Covered calls premium collected: $1,632.31 (1.0% of $163,231)
+INFO:      Total premium to date: $27,247.73
+INFO:   💰 Covered calls premium collected: $1,914.57 (1.0% of $191,457)
+INFO:      Total premium to date: $29,162.30
+INFO:   💰 Covered calls premium collected: $1,844.91 (1.0% of $184,491)
+INFO:      Total premium to date: $31,007.21
+INFO:   💰 Covered calls premium collected: $1,797.22 (1.0% of $179,722)
+INFO:      Total premium to date: $32,804.43
+INFO:   💰 Covered calls premium collected: $1,941.77 (1.0% of $194,177)
+INFO:      Total premium to date: $34,746.19
+INFO:   💰 Covered calls premium collected: $2,065.42 (1.0% of $206,542)
+INFO:      Total premium to date: $36,811.61
+INFO:   💰 Covered calls premium collected: $1,790.15 (1.0% of $179,015)
+INFO:      Total premium to date: $38,601.76
+INFO:   💰 Covered calls premium collected: $1,838.87 (1.0% of $183,887)
+INFO:      Total premium to date: $40,440.63
+INFO:   💰 Covered calls premium collected: $1,888.62 (1.0% of $188,862)
+INFO:      Total premium to date: $42,329.25
+✅ Loaded 467 stocks
+
+================================================================================
+TESTING V31 vs V32 IN EACH REGIME
+================================================================================
+
+🔍 Testing: housing_bull_2003
+   Type: BULL
+   Period: 2003-01-01 to 2007-10-01
+   🔵 Running V31...
+   🟢 Running V32...
+
+   📊 V31:   35.8% return,  1.73 Sharpe,  -15.0% DD
+   📊 V32:   35.6% return,  1.69 Sharpe,  -13.9% DD
+   ⚠️  V31 Better: -0.03 Sharpe, -0.2% return
+
+🔍 Testing: gfc_2008
+   Type: BEAR
+   Period: 2007-10-01 to 2009-03-01
+   🔵 Running V31...
+   🟢 Running V32...
+
+   📊 V31:  -11.8% return, -1.13 Sharpe,  -24.4% DD
+   📊 V32:  -11.6% return, -1.11 Sharpe,  -24.4% DD
+   ✅ V32 Better: +0.03 Sharpe, +0.1% return
+
+🔍 Testing: recovery_2009
+   Type: BULL
+   Period: 2009-03-01 to 2015-01-01
+   🔵 Running V31...
+   🟢 Running V32...
+
+   📊 V31:   34.9% return,  1.70 Sharpe,  -15.8% DD
+   📊 V32:   34.7% return,  1.67 Sharpe,  -16.7% DD
+   ⚠️  V31 Better: -0.03 Sharpe, -0.3% return
+
+🔍 Testing: trump_bull_2016
+   Type: BULL
+   Period: 2016-11-01 to 2020-02-01
+   🔵 Running V31...
+   🟢 Running V32...
+
+   📊 V31:   42.0% return,  2.03 Sharpe,  -13.3% DD
+   📊 V32:   40.4% return,  1.96 Sharpe,  -15.4% DD
+   ⚠️  V31 Better: -0.07 Sharpe, -1.6% return
+
+🔍 Testing: covid_crash_2020
+   Type: BEAR
+   Period: 2020-02-01 to 2020-04-01
+   🔵 Running V31...
+   🟢 Running V32...
+
+   📊 V31:  -39.4% return, -1.54 Sharpe,  -14.6% DD
+   📊 V32:  -44.8% return, -1.56 Sharpe,  -16.2% DD
+   ⚠️  V31 Better: -0.02 Sharpe, -5.4% return
+
+🔍 Testing: post_covid_2020
+   Type: BULL
+   Period: 2020-04-01 to 2022-01-01
+   🔵 Running V31...
+   🟢 Running V32...
+
+   📊 V31:   44.0% return,  2.29 Sharpe,   -7.8% DD
+   📊 V32:   49.1% return,  2.46 Sharpe,   -7.8% DD
+   ✅ V32 Better: +0.16 Sharpe, +5.2% return
+
+🔍 Testing: bear_2022
+   Type: BEAR
+   Period: 2022-01-01 to 2022-10-01
+   🔵 Running V31...
+   🟢 Running V32...
+
+   📊 V31:  -24.5% return, -1.87 Sharpe,  -18.8% DD
+   📊 V32:  -24.8% return, -1.86 Sharpe,  -19.0% DD
+   ✅ V32 Better: +0.01 Sharpe, +-0.3% return
+
+🔍 Testing: ai_boom_2023
+   Type: BULL
+   Period: 2022-10-01 to 2024-12-31
+   🔵 Running V31...
+   🟢 Running V32...
+
+   📊 V31:   52.9% return,  2.06 Sharpe,  -13.9% DD
+   📊 V32:   47.8% return,  1.88 Sharpe,  -15.3% DD
+   ⚠️  V31 Better: -0.18 Sharpe, -5.1% return
+
+================================================================================
+COMPARISON SUMMARY
+================================================================================
+
+📊 OVERALL PERFORMANCE:
+   V31 Mean Sharpe: 0.66
+   V32 Mean Sharpe: 0.64
+   Improvement: -0.02
+
+   V31 Mean Return: 16.7%
+   V32 Mean Return: 15.8%
+   Improvement: -0.9%
+
+   V31 Mean Max DD: -15.5%
+   V32 Mean Max DD: -16.1%
+   Improvement: -0.6%
+
+📈 BULL MARKETS:
+   V31 Mean Sharpe: 1.96
+   V32 Mean Sharpe: 1.93
+   Improvement: -0.03
+
+📉 BEAR MARKETS (Key Target):
+   V31 Mean Sharpe: -1.51
+   V32 Mean Sharpe: -1.51
+   Improvement: 0.01
+
+   V31 Mean Return: -25.2%
+   V32 Mean Return: -27.1%
+   Improvement: -1.9%
+
+🎯 V32 WINS: 3/8 regimes (38%)
+
+================================================================================
+🏆 BIGGEST IMPROVEMENTS (V32 vs V31)
+================================================================================
+
+post_covid_2020 (BULL):
+   Sharpe: 2.29 → 2.46 (+0.16)
+   Return: 44.0% → 49.1% (+5.2%)
+
+gfc_2008 (BEAR):
+   Sharpe: -1.13 → -1.11 (+0.03)
+   Return: -11.8% → -11.6% (+0.1%)
+
+bear_2022 (BEAR):
+   Sharpe: -1.87 → -1.86 (+0.01)
+   Return: -24.5% → -24.8% (+-0.3%)
+
+================================================================================
+⚠️  REGRESSIONS (V32 worse than V31)
+================================================================================
+
+housing_bull_2003 (BULL):
+   Sharpe: 1.73 → 1.69 (-0.03)
+   Return: 35.8% → 35.6% (-0.2%)
+
+recovery_2009 (BULL):
+   Sharpe: 1.70 → 1.67 (-0.03)
+   Return: 34.9% → 34.7% (-0.3%)
+
+trump_bull_2016 (BULL):
+   Sharpe: 2.03 → 1.96 (-0.07)
+   Return: 42.0% → 40.4% (-1.6%)
+
+covid_crash_2020 (BEAR):
+   Sharpe: -1.54 → -1.56 (-0.02)
+   Return: -39.4% → -44.8% (-5.4%)
+
+ai_boom_2023 (BULL):
+   Sharpe: 2.06 → 1.88 (-0.18)
+   Return: 52.9% → 47.8% (-5.1%)
+
+================================================================================
+📊 V32 ROBUSTNESS METRICS
+================================================================================
+   Mean Sharpe: 0.64
+   Min Sharpe: -1.86
+   Sharpe Std Dev: 1.81
+   % positive Sharpe: 62%
+
+Comparison to V31:
+   V31 Min Sharpe: -1.87
+   V32 Min Sharpe: -1.86
+   Improvement: 0.01
+
+   V31 Sharpe Std Dev: 1.82
+   V32 Sharpe Std Dev: 1.81
+   Improvement: 0.01 (lower is better)
+
+================================================================================
+✅ Comparison complete! Results saved to: output/v31_v32_comparison.csv
+================================================================================

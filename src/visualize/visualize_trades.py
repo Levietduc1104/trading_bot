@@ -1204,6 +1204,330 @@ def track_trades_v30_vol_weighted(bot, start_year=2015, end_year=2024):
     return trades
 
 
+
+
+def track_trades_v31(bot, start_year=2015, end_year=2024, quarterly_premium_rate=0.01):
+    """
+    Track all trades during V31 (V30 + Covered Calls) backtest
+    
+    V31 Strategy:
+    - Same as V30 Vol-Weighted (volatility-weighted position sizing)
+    - PLUS: Covered calls for premium income
+    - Target: 4% annual premium (1% quarterly)
+    - Premium collected at each rebalance
+    - 15% trailing stop losses
+    - VIX-based cash reserves
+    
+    Expected: 16.7% annual, -17.1% DD, Sharpe 0.91 (+32.6% vs V30)
+    """
+    import numpy as np
+    
+    # Configuration
+    config = {
+        'megacap_allocation': 0.70,
+        'num_megacap': 3,
+        'num_momentum': 2,
+        'trailing_stop': 0.15,
+        'num_top_megacaps': 7,
+        'lookback_trading_value': 20,
+        'vol_lookback': 20,
+        'min_position_size': 0.10,
+        'max_position_size': 0.25,
+    }
+    
+    # V31: Covered calls tracking
+    total_premium = 0.0
+    premium_collections = []
+    
+    def calculate_volatility(ticker, date):
+        """Calculate annualized volatility for a stock"""
+        df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+        if len(df_at_date) < config['vol_lookback']:
+            return None
+        recent = df_at_date.tail(config['vol_lookback'])
+        returns = recent['close'].pct_change().dropna()
+        volatility = returns.std() * np.sqrt(252)
+        return volatility
+    
+    def calculate_vol_weighted_positions(stocks, date, total_amount):
+        """Allocate capital based on inverse volatility weighting"""
+        volatilities = {}
+        for ticker, score in stocks:
+            vol = calculate_volatility(ticker, date)
+            if vol is not None and vol > 0:
+                volatilities[ticker] = vol
+        
+        if not volatilities:
+            equal_weight = total_amount / len(stocks)
+            return {ticker: equal_weight for ticker, score in stocks}
+        
+        inverse_vols = {ticker: 1.0 / vol for ticker, vol in volatilities.items()}
+        total_inverse_vol = sum(inverse_vols.values())
+        raw_weights = {ticker: inv_vol / total_inverse_vol for ticker, inv_vol in inverse_vols.items()}
+        
+        allocations = {}
+        for ticker, weight in raw_weights.items():
+            constrained_weight = np.clip(weight, config['min_position_size'], config['max_position_size'])
+            allocations[ticker] = constrained_weight * total_amount
+        
+        total_allocated = sum(allocations.values())
+        if total_allocated > 0:
+            scale_factor = total_amount / total_allocated
+            allocations = {ticker: amount * scale_factor for ticker, amount in allocations.items()}
+        
+        return allocations
+    
+    def identify_megacaps(date):
+        """Identify mega-caps using trading value"""
+        ETF_EXCLUSIONS = {'SPY', 'SPY 2', 'QQQ', 'IVV', 'VOO', 'VTI', 'DIA', 'IWM', 'EFA', 'EEM'}
+        lookback = config['lookback_trading_value']
+        trading_values = {}
+        for ticker, df in bot.stocks_data.items():
+            if ticker in ETF_EXCLUSIONS:
+                continue
+            df_at_date = df[df.index <= date]
+            if len(df_at_date) >= lookback:
+                recent = df_at_date.tail(lookback)
+                avg_trading_value = (recent['close'] * recent['volume']).mean()
+                trading_values[ticker] = avg_trading_value
+        sorted_stocks = sorted(trading_values.items(), key=lambda x: x[1], reverse=True)
+        return [ticker for ticker, _ in sorted_stocks[:config['num_top_megacaps']]]
+    
+    first_ticker = list(bot.stocks_data.keys())[0]
+    all_dates = bot.stocks_data[first_ticker].index
+    all_dates = all_dates[(all_dates >= f'{start_year}-01-01') & (all_dates <= f'{end_year}-12-31')]
+    
+    cash = bot.initial_capital
+    holdings = {}
+    trades = []
+    last_rebalance = None
+    
+    for date in all_dates:
+        # Check trailing stops
+        for ticker in list(holdings.keys()):
+            df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+            if len(df_at_date) > 0:
+                current_price = df_at_date.iloc[-1]['close']
+                holdings[ticker]['peak_price'] = max(holdings[ticker]['peak_price'], current_price)
+                
+                stop_price = holdings[ticker]['peak_price'] * (1 - config['trailing_stop'])
+                if current_price < stop_price:
+                    shares = holdings[ticker]['shares']
+                    value = shares * current_price
+                    cash += value
+                    
+                    trades.append({
+                        'date': date,
+                        'ticker': ticker,
+                        'action': 'SELL',
+                        'price': current_price,
+                        'shares': shares,
+                        'value': value,
+                        'reason': 'TRAILING_STOP'
+                    })
+                    del holdings[ticker]
+        
+        # Monthly rebalancing
+        is_rebalance = (
+            last_rebalance is None or
+            ((date.year, date.month) != (last_rebalance.year, last_rebalance.month) and 7 <= date.day <= 15)
+        )
+        
+        if is_rebalance:
+            last_rebalance = date
+            
+            # ==================== V31: COLLECT COVERED CALLS PREMIUM ====================
+            # Calculate portfolio value BEFORE rebalancing
+            stocks_value = sum(
+                h['shares'] * bot.stocks_data[t][bot.stocks_data[t].index <= date].iloc[-1]['close']
+                for t, h in holdings.items()
+                if len(bot.stocks_data[t][bot.stocks_data[t].index <= date]) > 0
+            )
+            portfolio_value = cash + stocks_value
+            
+            # Collect premium (1% of portfolio value quarterly)
+            premium = portfolio_value * quarterly_premium_rate
+            cash += premium
+            total_premium += premium
+            
+            premium_collections.append({
+                'date': date,
+                'premium': premium,
+                'portfolio_value': portfolio_value,
+                'cumulative_premium': total_premium
+            })
+            
+            trades.append({
+                'date': date,
+                'ticker': 'COVERED_CALLS',
+                'action': 'PREMIUM',
+                'premium': premium,
+                'cumulative_premium': total_premium,
+                'portfolio_value': portfolio_value,
+                'premium_rate': quarterly_premium_rate * 100
+            })
+            # ============================================================================
+            
+            # Sell all holdings
+            for ticker in list(holdings.keys()):
+                df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                if len(df_at_date) > 0:
+                    price = df_at_date.iloc[-1]['close']
+                    shares = holdings[ticker]['shares']
+                    value = shares * price
+                    cash += value
+                    
+                    trades.append({
+                        'date': date,
+                        'ticker': ticker,
+                        'action': 'SELL',
+                        'price': price,
+                        'shares': shares,
+                        'value': value,
+                        'reason': 'REBALANCE'
+                    })
+            holdings = {}
+            
+            # VIX and cash reserve
+            vix = 20
+            if bot.vix_data is not None:
+                vix_at_date = bot.vix_data[bot.vix_data.index <= date]
+                if len(vix_at_date) > 0:
+                    vix = vix_at_date.iloc[-1]['close']
+            
+            if vix < 15:
+                cash_reserve = 0.05
+            elif vix < 20:
+                cash_reserve = 0.10
+            elif vix < 25:
+                cash_reserve = 0.20
+            elif vix < 30:
+                cash_reserve = 0.35
+            elif vix < 40:
+                cash_reserve = 0.50
+            else:
+                cash_reserve = 0.70
+            
+            if cash_reserve <= 0.10:
+                regime = 'BULLISH'
+            elif cash_reserve <= 0.35:
+                regime = 'NEUTRAL'
+            else:
+                regime = 'BEARISH'
+            
+            invest_amount = cash * (1 - cash_reserve)
+            
+            # Stock selection (same as V30)
+            megacaps = identify_megacaps(date)
+            
+            megacap_scores = {}
+            for ticker in megacaps:
+                if ticker in bot.stocks_data:
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) >= 20:
+                        mom20 = (df_at_date['close'].iloc[-1] / df_at_date['close'].iloc[-20] - 1) * 100
+                        megacap_scores[ticker] = mom20
+            
+            top_megacaps = sorted(megacap_scores.items(), key=lambda x: x[1], reverse=True)[:config['num_megacap']]
+            
+            momentum_scores = {}
+            for ticker, df in bot.stocks_data.items():
+                if ticker in megacaps:
+                    continue
+                df_at_date = df[df.index <= date]
+                if len(df_at_date) >= 100:
+                    try:
+                        score = bot.score_stock(ticker, df_at_date)
+                        momentum_scores[ticker] = score
+                    except:
+                        pass
+            
+            top_momentum = sorted(momentum_scores.items(), key=lambda x: x[1], reverse=True)[:config['num_momentum']]
+            
+            megacap_amount = invest_amount * config['megacap_allocation']
+            momentum_amount = invest_amount * (1 - config['megacap_allocation'])
+            
+            # Buy mega-caps with volatility weighting
+            if top_megacaps:
+                megacap_allocations = calculate_vol_weighted_positions(top_megacaps, date, megacap_amount)
+                
+                for ticker, allocation in megacap_allocations.items():
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        shares = allocation / price
+                        holdings[ticker] = {
+                            'shares': shares,
+                            'entry_price': price,
+                            'peak_price': price
+                        }
+                        cash -= allocation
+                        
+                        vol = calculate_volatility(ticker, date)
+                        vol_pct = vol * 100 if vol else 0
+                        
+                        trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'BUY',
+                            'price': price,
+                            'shares': shares,
+                            'value': allocation,
+                            'score': megacap_scores.get(ticker, 0),
+                            'category': 'MEGACAP',
+                            'volatility': vol_pct,
+                            'position_pct': (allocation / invest_amount) * 100
+                        })
+            
+            # Buy momentum stocks with volatility weighting
+            if top_momentum:
+                momentum_allocations = calculate_vol_weighted_positions(top_momentum, date, momentum_amount)
+                
+                for ticker, allocation in momentum_allocations.items():
+                    df_at_date = bot.stocks_data[ticker][bot.stocks_data[ticker].index <= date]
+                    if len(df_at_date) > 0:
+                        price = df_at_date.iloc[-1]['close']
+                        shares = allocation / price
+                        holdings[ticker] = {
+                            'shares': shares,
+                            'entry_price': price,
+                            'peak_price': price
+                        }
+                        cash -= allocation
+                        
+                        vol = calculate_volatility(ticker, date)
+                        vol_pct = vol * 100 if vol else 0
+                        
+                        trades.append({
+                            'date': date,
+                            'ticker': ticker,
+                            'action': 'BUY',
+                            'price': price,
+                            'shares': shares,
+                            'value': allocation,
+                            'score': momentum_scores.get(ticker, 0),
+                            'category': 'MOMENTUM',
+                            'volatility': vol_pct,
+                            'position_pct': (allocation / invest_amount) * 100
+                        })
+            
+            # Record portfolio state
+            trades.append({
+                'date': date,
+                'ticker': 'PORTFOLIO',
+                'action': 'HOLDINGS',
+                'holdings': list(holdings.keys()),
+                'cash': cash,
+                'cash_reserve': cash_reserve,
+                'market_regime': regime,
+                'vix': vix,
+                'megacaps': megacaps[:3],
+                'total_premium': total_premium  # V31: Track cumulative premium
+            })
+    
+    return trades
+
+
 def create_trade_visualizations(run_id=None):
     """Create comprehensive multi-tab trading visualizations
 
@@ -1263,7 +1587,15 @@ def create_trade_visualizations(run_id=None):
     bot.score_all_stocks()
 
     # Select appropriate tracking function based on strategy
-    if 'VOL_WEIGHTED' in strategy_name:
+    # Check if run_name contains covered_calls indicator (from --covered-calls flag)
+    run_name = latest_run.get('run_name', [''])[0] if 'run_name' in latest_run.columns else ''
+    has_covered_calls = 'covered_calls' in run_name.lower() or 'v31' in run_name.lower()
+    
+    if has_covered_calls or 'V31' in strategy_name:
+        # V31: V30 + Covered Calls
+        logger.info(f"  Using V31 (V30 + COVERED CALLS) tracking for strategy: {strategy_name}")
+        trades_log = track_trades_v31(bot, start_year=2015, end_year=2024, quarterly_premium_rate=0.01)
+    elif 'VOL_WEIGHTED' in strategy_name:
         logger.info(f"  Using V30 VOL-WEIGHTED tracking for strategy: {strategy_name}")
         trades_log = track_trades_v30_vol_weighted(bot, start_year=2015, end_year=2024)
     elif 'V30_ML' in strategy_name or 'ML_STEP1' in strategy_name:

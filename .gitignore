@@ -15,10 +15,46 @@ venv/
 
 # Python egg files
 *.egg-info/
+
 # Ignore all HTML files
 *.html
+
 # Output directory - generated results
-output/
+# Keep CSVs for trade history
+output/*.png
+output/*.html
+output/plots/
+output/reports/
+output/data/*.db
+output/logs/
+
+# Data directories - large datasets
+sp500_data/fmp_fundamentals/
+sp500_data/fmp_fundamentals_historical/
+sp500_data/stock_data_*/
+sp500_data/all_stock_data.csv
+sp500_data/individual_stocks/
+sp500_data/sp500_filtered/
+sp500_data/alpaca_data_fetchers/
+sp500_data/archive/
 
 # Log files
 *.log
+config/alpaca_config.py
+
+# Alpaca API credentials
+src/live_trading/alpaca_config.py
+
+# Test/Development artifacts
+*.bak
+*.bak2
+*_backup.py
+*_output.txt
+position_sizing_*.txt
+
+# Archives and old versions
+docs/archive/
+docs/archive_old_versions/
+docs/baseline_v31_validated/
+examples/
+scripts/

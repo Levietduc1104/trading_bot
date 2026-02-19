@@ -1,0 +1,10 @@
+# From fmp_data_fetcher, go back one level and then into market_cap_calculator
+
+cd ../market_cap_calculator
+
+# Or use absolute path (copy-paste this):
+cd ~/Documents/Documents\ -\ Le\'s\ MacBook\ Pro/Learning/ml_tranning/trading_bot/src/tool/market_cap_calculator
+
+# Verify you're there:
+pwd
+ls -la

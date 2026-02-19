@@ -1,0 +1,41 @@
+target_date,actual_date,delay_days,vix,reason,day_of_week
+2015-01-12,2015-01-12,0,19.82441412169604,Acceptable window (not preferred day),Monday
+2015-04-13,2015-04-13,0,19.59740032124662,Acceptable window (not preferred day),Monday
+2015-07-13,2015-07-13,0,11.648583904664548,Acceptable window (not preferred day),Monday
+2015-10-12,2015-10-26,14,22.26049013111645,FORCED (max delay reached),Monday
+2016-01-11,2016-01-11,0,18.533967367530284,Acceptable window (not preferred day),Monday
+2016-04-11,2016-04-11,0,14.132067760863997,Acceptable window (not preferred day),Monday
+2016-07-11,2016-07-11,0,19.738174272277032,Acceptable window (not preferred day),Monday
+2016-10-10,2016-10-12,2,14.286650911038356,Optimal window found,Wednesday
+2017-01-09,2017-01-11,2,9.612434402621208,Optimal window found,Wednesday
+2017-04-10,2017-04-12,2,8.363140101978523,Optimal window found,Wednesday
+2017-07-10,2017-07-12,2,12.164035740549553,Optimal window found,Wednesday
+2017-10-09,2017-10-11,2,11.917744014410903,Optimal window found,Wednesday
+2018-01-08,2018-01-10,2,10.442577181814771,Optimal window found,Wednesday
+2018-04-09,2018-04-23,14,24.24400002463892,FORCED (max delay reached),Monday
+2018-07-09,2018-07-11,2,15.9592638016783,Optimal window found,Wednesday
+2018-10-08,2018-10-10,2,15.227640180405992,Optimal window found,Wednesday
+2019-01-14,2019-01-28,14,30.58289640589197,FORCED (max delay reached),Monday
+2019-04-08,2019-04-10,2,16.6147275550856,Optimal window found,Wednesday
+2019-07-08,2019-07-10,2,15.514372717406028,Optimal window found,Wednesday
+2019-10-14,2019-10-14,0,19.530810677999035,Acceptable window (not preferred day),Monday
+2020-01-13,2020-01-13,0,13.700309357662643,Acceptable window (not preferred day),Monday
+2020-04-13,2020-04-27,14,75.69884987103248,FORCED (max delay reached),Monday
+2020-07-13,2020-07-27,14,28.3149017260995,FORCED (max delay reached),Monday
+2020-10-12,2020-10-26,14,31.8360656232551,FORCED (max delay reached),Monday
+2021-01-11,2021-01-25,14,27.246101272907925,FORCED (max delay reached),Monday
+2021-04-12,2021-04-26,14,21.3746744234144,FORCED (max delay reached),Monday
+2021-07-12,2021-07-12,0,19.42893855540234,Acceptable window (not preferred day),Monday
+2021-10-11,2021-10-25,14,29.29436030756516,FORCED (max delay reached),Monday
+2022-01-10,2022-01-12,2,17.4133133979454,Optimal window found,Wednesday
+2022-04-11,2022-04-25,14,24.925481797043993,FORCED (max delay reached),Monday
+2022-07-11,2022-07-25,14,27.325728289557404,FORCED (max delay reached),Monday
+2022-10-10,2022-10-24,14,33.37596342038013,FORCED (max delay reached),Monday
+2023-01-09,2023-01-23,14,22.81281956064771,FORCED (max delay reached),Monday
+2023-04-10,2023-04-24,14,21.401603953334867,FORCED (max delay reached),Monday
+2023-07-10,2023-07-12,2,17.526190158526077,Optimal window found,Wednesday
+2023-10-09,2023-10-11,2,12.81306245512762,Optimal window found,Wednesday
+2024-01-08,2024-01-10,2,12.23977001823217,Optimal window found,Wednesday
+2024-04-08,2024-04-10,2,15.675176526033397,Optimal window found,Wednesday
+2024-07-08,2024-07-10,2,13.509870075635549,Optimal window found,Wednesday
+2024-10-14,2024-10-23,9,15.955622785026083,Optimal window found,Wednesday

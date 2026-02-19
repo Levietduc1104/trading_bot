@@ -1,0 +1,12 @@
+2026-01-16 11:30:32,932 - INFO - 
+2026-01-16 11:30:32,932 - INFO - ================================================================================
+2026-01-16 11:30:32,932 - INFO - STARTING V31 ML-POWERED EXECUTION
+2026-01-16 11:30:32,932 - INFO - ================================================================================
+2026-01-16 11:30:32,932 - INFO - Start time: 2026-01-16 11:30:32
+2026-01-16 11:30:32,935 - ERROR - Execution failed: No module named 'src.strategies.v31_ml_megacap'
+Traceback (most recent call last):
+  File "/Users/levietduc/Documents/Documents - Le’s MacBook Pro/Learning/ml_trading/trading_bot/run_v31_ml_execution.py", line 327, in <module>
+    portfolio_df, metrics, spy_metrics = run_v31_backtest(start_year=2015, end_year=2024)
+  File "/Users/levietduc/Documents/Documents - Le’s MacBook Pro/Learning/ml_trading/trading_bot/run_v31_ml_execution.py", line 110, in run_v31_backtest
+    from src.strategies.v31_ml_megacap import V31MLMegaCapStrategy
+ModuleNotFoundError: No module named 'src.strategies.v31_ml_megacap'
