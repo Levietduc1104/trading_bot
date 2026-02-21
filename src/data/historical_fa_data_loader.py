@@ -20,18 +20,36 @@ class HistoricalFADataLoader:
     Data sources:
     - financial_ratios_historical.json (64 fields, quarterly, 2005-2025)
     - key_metrics_historical.json (43 fields, quarterly, 2005-2025)
+    - earnings_surprises.json (actual vs estimated EPS, 2006-2025)
+    - analyst_estimates.json (forward consensus EPS/revenue, 2006-2025)
+    - income_statements.json (quarterly P&L, 2006-2025)
+    - balance_sheets.json (quarterly balance sheet, 2006-2025)
+    - cashflow_statements.json (quarterly cash flows, 2006-2025)
 
     Key feature: Date-based queries to avoid look-ahead bias
     """
 
-    def __init__(self, data_dir='sp500_data/fmp_fundamentals_historical'):
+    def __init__(self, data_dir='sp500_data/fmp_fundamentals_historical',
+                 premium_dir='sp500_data/fmp_fundamentals_premium'):
         self.data_dir = data_dir
+        self.premium_dir = premium_dir
         self.ratios = {}
         self.metrics = {}
+        # Premium data
+        self.earnings = {}       # earnings surprises
+        self.analyst = {}        # analyst estimates
+        self.income = {}         # income statements
+        self.balance = {}        # balance sheets
+        self.cashflow = {}       # cash flow statements
         self.loaded = False
 
         # Date index for fast lookups
-        self.date_index = {}  # {ticker: [sorted_dates]}
+        self.date_index = {}          # {ticker: [sorted_dates]} for ratios
+        self.earnings_date_idx = {}   # {ticker: [sorted_dates]}
+        self.analyst_date_idx = {}
+        self.income_date_idx = {}
+        self.balance_date_idx = {}
+        self.cashflow_date_idx = {}
 
     def load_all(self):
         """Load all historical FA data into memory (called once at startup)"""
@@ -58,12 +76,27 @@ class HistoricalFADataLoader:
         else:
             logger.warning(f"Historical metrics not found: {metrics_path}")
 
+        # Load premium data
+        for attr, fname, label in [
+            ('earnings', 'earnings_surprises.json',   'earnings surprises'),
+            ('analyst',  'analyst_estimates.json',    'analyst estimates'),
+            ('income',   'income_statements.json',    'income statements'),
+            ('balance',  'balance_sheets.json',       'balance sheets'),
+            ('cashflow', 'cashflow_statements.json',  'cashflow statements'),
+        ]:
+            path = os.path.join(self.premium_dir, fname)
+            if os.path.exists(path):
+                with open(path, 'r') as f:
+                    setattr(self, attr, json.load(f))
+                logger.info(f"✓ Loaded {label} for {len(getattr(self, attr))} stocks")
+            else:
+                logger.warning(f"Premium data not found: {path}")
+
         self.loaded = True
 
-        # Build date index for fast queries
+        # Build date indices for fast queries
         self._build_date_index()
 
-        # Calculate coverage
         common_stocks = set(self.ratios.keys()) & set(self.metrics.keys())
         logger.info(f"✓ Complete historical FA data for {len(common_stocks)} stocks")
 
@@ -72,6 +105,105 @@ class HistoricalFADataLoader:
         for ticker in self.ratios.keys():
             dates = [r['date'] for r in self.ratios[ticker]]
             self.date_index[ticker] = sorted(dates)
+
+        for attr, idx_attr in [
+            ('earnings', 'earnings_date_idx'),
+            ('analyst',  'analyst_date_idx'),
+            ('income',   'income_date_idx'),
+            ('balance',  'balance_date_idx'),
+            ('cashflow', 'cashflow_date_idx'),
+        ]:
+            src = getattr(self, attr)
+            idx = {}
+            for ticker, records in src.items():
+                dates = sorted([r['date'] for r in records if r.get('date')])
+                if dates:
+                    idx[ticker] = dates
+            setattr(self, idx_attr, idx)
+
+    def _get_record_at_date(self, records, date_index, ticker, target_date_str):
+        """
+        Generic: return most recent record for ticker with date <= target_date_str.
+        Returns the raw record dict or None.
+        """
+        if ticker not in date_index:
+            return None
+        dates = date_index[ticker]
+        idx = bisect_left(dates, target_date_str)
+        if idx >= len(dates):
+            idx = len(dates) - 1
+        elif dates[idx] > target_date_str:
+            if idx == 0:
+                return None
+            idx -= 1
+        target = dates[idx]
+        src = records.get(ticker, [])
+        for r in src:
+            if r.get('date') == target:
+                return r
+        return None
+
+    def get_earnings_at_date(self, ticker, target_date):
+        """Return most recent earnings surprise record before target_date."""
+        if isinstance(target_date, str):
+            d = target_date
+        else:
+            d = target_date.strftime('%Y-%m-%d')
+        return self._get_record_at_date(self.earnings, self.earnings_date_idx, ticker, d)
+
+    def get_analyst_at_date(self, ticker, target_date):
+        """Return most recent analyst estimate record before target_date."""
+        if isinstance(target_date, str):
+            d = target_date
+        else:
+            d = target_date.strftime('%Y-%m-%d')
+        return self._get_record_at_date(self.analyst, self.analyst_date_idx, ticker, d)
+
+    def get_income_at_date(self, ticker, target_date):
+        """Return most recent income statement before target_date."""
+        if isinstance(target_date, str):
+            d = target_date
+        else:
+            d = target_date.strftime('%Y-%m-%d')
+        return self._get_record_at_date(self.income, self.income_date_idx, ticker, d)
+
+    def get_balance_at_date(self, ticker, target_date):
+        """Return most recent balance sheet before target_date."""
+        if isinstance(target_date, str):
+            d = target_date
+        else:
+            d = target_date.strftime('%Y-%m-%d')
+        return self._get_record_at_date(self.balance, self.balance_date_idx, ticker, d)
+
+    def get_cashflow_at_date(self, ticker, target_date):
+        """Return most recent cash flow statement before target_date."""
+        if isinstance(target_date, str):
+            d = target_date
+        else:
+            d = target_date.strftime('%Y-%m-%d')
+        return self._get_record_at_date(self.cashflow, self.cashflow_date_idx, ticker, d)
+
+    def get_income_history(self, ticker, target_date, n_quarters=4):
+        """Return last n_quarters income statements before target_date (most recent first)."""
+        if isinstance(target_date, str):
+            d = target_date
+        else:
+            d = target_date.strftime('%Y-%m-%d')
+        if ticker not in self.income_date_idx:
+            return []
+        dates = self.income_date_idx[ticker]
+        idx = bisect_left(dates, d)
+        if idx >= len(dates):
+            idx = len(dates) - 1
+        elif dates[idx] > d:
+            idx -= 1
+        # Collect up to n_quarters records going backwards
+        result = []
+        src = {r['date']: r for r in self.income.get(ticker, [])}
+        for i in range(idx, max(-1, idx - n_quarters), -1):
+            if i >= 0 and dates[i] in src:
+                result.append(src[dates[i]])
+        return result
 
     def get_fa_data_at_date(self, ticker, target_date):
         """

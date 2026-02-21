@@ -21,7 +21,7 @@ from src.strategies.enhanced_position_sizing import EnhancedPositionSizer
 logger = logging.getLogger(__name__)
 
 class V31EnhancedStrategy:
-    def __init__(self, bot, config=None, use_transaction_costs=False, broker='interactive_brokers', enable_covered_calls=False):
+    def __init__(self, bot, config=None, use_transaction_costs=False, broker='interactive_brokers', enable_covered_calls=False, monthly_contribution=0):
         self.bot = bot
         self.config = config or {
             'megacap_allocation': 0.70,
@@ -34,6 +34,8 @@ class V31EnhancedStrategy:
             'rebalance_frequency': 'quarterly',
         }
         self.initial_capital = bot.initial_capital
+        self.monthly_contribution = monthly_contribution
+        self.total_contributions = 0
 
         # Enhanced position sizer
         self.position_sizer = EnhancedPositionSizer(config={
@@ -167,8 +169,26 @@ class V31EnhancedStrategy:
         holdings = {}
         cash = self.initial_capital
         last_rebalance = None
+        last_contribution_month = None  # Track monthly contributions
+
+        # Log monthly contribution setting
+        if self.monthly_contribution > 0:
+            logger.info(f"💰 Monthly Contribution Feature ENABLED: ${self.monthly_contribution:,.0f}/month")
+            logger.info(f"   Expected over 18 years: ${self.monthly_contribution * 12 * 18:,.0f}")
 
         for date in all_dates:
+            # Add monthly contribution on first trading day of each month
+            if self.monthly_contribution > 0:
+                current_month = (date.year, date.month)
+                if last_contribution_month is None or current_month != last_contribution_month:
+                    cash += self.monthly_contribution
+                    self.total_contributions += self.monthly_contribution
+                    last_contribution_month = current_month
+                    # Only log first, last, and every 24 months
+                    if self.total_contributions <= self.monthly_contribution or self.total_contributions % (self.monthly_contribution * 24) == 0:
+                        logger.info(f"   💵 {date.strftime('%Y-%m')}: Added contribution (Total: ${self.total_contributions:,})")
+
+
             # Update peak prices and check trailing stops
             for ticker in list(holdings.keys()):
                 df_at_date = self.bot.stocks_data[ticker][self.bot.stocks_data[ticker].index <= date]
