@@ -66,6 +66,12 @@ class MLFeatureExtractor:
             premium = self._extract_premium_features(ticker, date, fa_loader)
             features.update(premium)
 
+        # =================================================================
+        # PART 4: MACRO REGIME FEATURES (7 features)
+        # =================================================================
+        macro = self._extract_macro_features(date, bot)
+        features.update(macro)
+
         return features
 
     def _extract_technical_features(self, df_at_date: pd.DataFrame, ticker: str, date: pd.Timestamp, bot) -> Optional[Dict]:
@@ -547,6 +553,87 @@ class MLFeatureExtractor:
 
         return f
 
+    def _extract_macro_features(self, date: pd.Timestamp, bot) -> Dict:
+        """
+        Extract 7 macro regime features from SPY and VIX.
+        All derived from data already loaded in bot — no new downloads needed.
+
+        Features:
+          vix_level           : current VIX reading
+          vix_roc_20d         : VIX 20-day rate of change (rising = stress building)
+          vix_roc_5d          : VIX 5-day rate of change (spike detector)
+          spy_ma200_ratio     : SPY / 200-day MA  (>1 = bull, <1 = bear)
+          spy_ma50_ratio      : SPY / 50-day MA   (faster signal)
+          spy_trend_strength  : 50-day MA / 200-day MA (golden/death cross)
+          market_stress       : composite score = vix_roc_20d - 100*(spy_ma200_ratio-1)
+                                positive = stress, negative = calm
+        """
+        f = {}
+
+        # ── VIX features ─────────────────────────────────────────────────
+        vix_val = 20.0  # neutral default
+        vix_20d_ago = 20.0
+        vix_5d_ago  = 20.0
+
+        # Use bot.vix_data if available, otherwise fall back to stocks_data['VIX']
+        vix_series = None
+        if bot.vix_data is not None:
+            vix_hist = bot.vix_data[bot.vix_data.index <= date]
+            if len(vix_hist) >= 1:
+                vix_series = vix_hist['close']
+        elif 'VIX' in bot.stocks_data:
+            vix_raw = bot.stocks_data['VIX']
+            vix_hist = vix_raw[vix_raw.index <= date]
+            if len(vix_hist) >= 1:
+                vix_series = vix_hist['close']
+
+        if vix_series is not None and len(vix_series) >= 1:
+            vix_val = float(vix_series.iloc[-1])
+            if len(vix_series) >= 21:
+                vix_20d_ago = float(vix_series.iloc[-21])
+            if len(vix_series) >= 6:
+                vix_5d_ago = float(vix_series.iloc[-6])
+
+        f['vix_level']   = vix_val
+        f['vix_roc_20d'] = (vix_val / vix_20d_ago - 1) * 100 if vix_20d_ago > 0 else 0.0
+        f['vix_roc_5d']  = (vix_val / vix_5d_ago  - 1) * 100 if vix_5d_ago  > 0 else 0.0
+
+        # ── SPY trend features ────────────────────────────────────────────
+        spy_ma200_ratio    = 1.0   # neutral defaults
+        spy_ma50_ratio     = 1.0
+        spy_trend_strength = 1.0
+
+        if 'SPY' in bot.stocks_data:
+            spy = bot.stocks_data['SPY']
+            spy_hist = spy[spy.index <= date]
+            if len(spy_hist) >= 200:
+                current  = float(spy_hist['close'].iloc[-1])
+                ma200    = float(spy_hist['close'].tail(200).mean())
+                spy_ma200_ratio = current / ma200 if ma200 > 0 else 1.0
+                if len(spy_hist) >= 50:
+                    ma50 = float(spy_hist['close'].tail(50).mean())
+                    spy_ma50_ratio     = current / ma50 if ma50 > 0 else 1.0
+                    spy_trend_strength = ma50    / ma200 if ma200 > 0 else 1.0
+
+        f['spy_ma200_ratio']    = (spy_ma200_ratio    - 1) * 100   # % above/below MA200
+        f['spy_ma50_ratio']     = (spy_ma50_ratio     - 1) * 100   # % above/below MA50
+        f['spy_trend_strength'] = (spy_trend_strength - 1) * 100   # golden/death cross signal
+
+        # ── Composite stress score ────────────────────────────────────────
+        # Positive = stress (high VIX rising + SPY below MA200)
+        # Negative = calm  (low VIX falling + SPY above MA200)
+        f['market_stress'] = f['vix_roc_20d'] - f['spy_ma200_ratio']
+
+        # Sanitize
+        for k, v in f.items():
+            try:
+                fv = float(v)
+                f[k] = 0.0 if (np.isnan(fv) or np.isinf(fv)) else fv
+            except (TypeError, ValueError):
+                f[k] = 0.0
+
+        return f
+
     def get_feature_count(self) -> Dict[str, int]:
         """Get feature counts by category"""
         return {
@@ -554,5 +641,6 @@ class MLFeatureExtractor:
             'fundamental_ratios': 64,
             'fundamental_metrics': 47,
             'premium': 15,
-            'total': 146
+            'macro': 7,
+            'total': 153
         }
