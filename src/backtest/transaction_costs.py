@@ -33,6 +33,11 @@ class TransactionCostModel:
                 'minimum': 0.35,       # $0.35 minimum
                 'maximum': 0.01        # 1% of trade value maximum
             },
+            'alpaca': {
+                'per_share': 0.0,     # $0.00 commission (no PFOF either)
+                'minimum': 0.0,
+                'maximum': 0.0
+            },
             'robinhood': {
                 'per_share': 0.0,
                 'minimum': 0.0,
@@ -53,6 +58,7 @@ class TransactionCostModel:
         # Hidden costs for "zero-commission" brokers (payment for order flow)
         self.pfof_costs = {
             'interactive_brokers': 0.0,  # No PFOF, best execution
+            'alpaca': 0.0,               # No PFOF, routes to best execution venues
             'robinhood': 0.0015,  # ~0.15% worse execution due to PFOF
             'schwab': 0.0008,     # ~0.08% worse execution
             'fidelity': 0.0007    # ~0.07% worse execution

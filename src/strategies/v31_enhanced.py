@@ -97,12 +97,12 @@ class V31EnhancedStrategy:
         return top_stocks['symbol'].tolist()
 
     def get_vix_cash_reserve(self, vix):
-        if vix < 15: return 0.05
-        elif vix < 20: return 0.10
-        elif vix < 25: return 0.20
-        elif vix < 30: return 0.35
-        elif vix < self.config['vix_crisis']: return 0.50
-        else: return 0.70
+        if vix < 15: return 0.03
+        elif vix < 20: return 0.05
+        elif vix < 25: return 0.10
+        elif vix < 30: return 0.15
+        elif vix < self.config['vix_crisis']: return 0.25
+        else: return 0.40
 
     def get_portfolio_dd_multiplier(self, portfolio_df):
         if portfolio_df is None or len(portfolio_df) < 2:
@@ -111,10 +111,10 @@ class V31EnhancedStrategy:
         current = portfolio_df['value'].iloc[-1]
         dd = (current - peak) / peak
         if dd > -0.05: return 1.0
-        elif dd > -0.10: return 0.90
-        elif dd > -0.15: return 0.75
-        elif dd > -0.20: return 0.50
-        else: return 0.25
+        elif dd > -0.10: return 0.95
+        elif dd > -0.15: return 0.85
+        elif dd > -0.20: return 0.70
+        else: return 0.50
 
     def check_trailing_stop(self, ticker, current_price, holdings):
         if ticker not in holdings:
@@ -123,8 +123,16 @@ class V31EnhancedStrategy:
         stop_price = peak_price * (1 - self.config['trailing_stop'])
         return current_price < stop_price
 
-    def calculate_trade_cost(self, ticker, shares, price, date):
-        """Calculate realistic transaction costs for a trade"""
+    def calculate_trade_cost(self, ticker, shares, price, date, action='BUY'):
+        """
+        Calculate realistic transaction costs for a trade.
+
+        action: 'BUY' or 'SELL'
+        Regulatory fees (SEC/FINRA TAF) are sell-side only per Alpaca/FINRA rules:
+          - TAF:  $0.000166/share, capped at $8.30/trade
+          - SEC:  $27.80 per $1,000,000 of sale proceeds (negligible at our sizes)
+        These are NOT charged on buys.
+        """
         if not self.use_transaction_costs or self.cost_model is None:
             return shares * price * 0.001
 
@@ -147,7 +155,15 @@ class V31EnhancedStrategy:
             order_type='market'
         )
 
-        return cost_info['total_cost']
+        total_cost = cost_info['total_cost']
+
+        # Add sell-side regulatory fees (buy side has none per Alpaca/FINRA)
+        if action == 'SELL':
+            taf = min(abs(shares) * 0.000166, 8.30)          # FINRA TAF
+            sec = abs(shares) * price * (27.80 / 1_000_000)   # SEC fee
+            total_cost += taf + sec
+
+        return total_cost
 
     def run_backtest(self, start_year=1963, end_year=2024):
         # Use SPY or find stock with longest data range
@@ -198,7 +214,7 @@ class V31EnhancedStrategy:
                     if self.check_trailing_stop(ticker, current_price, holdings):
                         shares = holdings[ticker]['shares']
                         proceeds = shares * current_price
-                        cost = self.calculate_trade_cost(ticker, shares, current_price, date)
+                        cost = self.calculate_trade_cost(ticker, shares, current_price, date, action='SELL')
                         cash += proceeds - cost
                         self.total_costs += cost
                         # Record trade
@@ -248,7 +264,7 @@ class V31EnhancedStrategy:
                         shares = holdings[ticker]['shares']
                         price = df_at_date.iloc[-1]['close']
                         proceeds = shares * price
-                        cost = self.calculate_trade_cost(ticker, shares, price, date)
+                        cost = self.calculate_trade_cost(ticker, shares, price, date, action='SELL')
                         cash += proceeds - cost
                         self.total_costs += cost
                         # Record trade

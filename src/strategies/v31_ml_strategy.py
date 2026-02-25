@@ -28,9 +28,9 @@ class V31MLStrategy(V31EnhancedStrategy):
     - Walk-forward validation during training
     """
 
-    def __init__(self, bot, use_transaction_costs=True, broker='interactive_brokers',
+    def __init__(self, bot, use_transaction_costs=True, broker='alpaca',
                  enable_covered_calls=True, monthly_contribution=0,
-                 ml_model=None, n_features_to_select=50):
+                 ml_model=None, n_features_to_select=50, fa_loader=None):
         super().__init__(bot=bot,
                         use_transaction_costs=use_transaction_costs,
                         broker=broker,
@@ -40,8 +40,13 @@ class V31MLStrategy(V31EnhancedStrategy):
         # ML components
         self.ml_model = ml_model  # Pre-trained model (optional)
         self.feature_extractor = MLFeatureExtractor()
-        self.fa_loader = HistoricalFADataLoader()
-        self.fa_loader.load_all()
+
+        # Accept an injected fa_loader (for live trading) or create one from disk
+        if fa_loader is not None:
+            self.fa_loader = fa_loader
+        else:
+            self.fa_loader = HistoricalFADataLoader()
+            self.fa_loader.load_all()
 
         # Feature selection
         self.n_features_to_select = n_features_to_select
@@ -86,14 +91,19 @@ class V31MLStrategy(V31EnhancedStrategy):
 
     def get_regime_multiplier(self, date: pd.Timestamp) -> float:
         """
-        Returns an equity exposure multiplier based on SPY vs its 200-day MA.
+        Returns an equity exposure multiplier based on SPY vs its 200-day MA,
+        with tightened thresholds and an MA50 death cross penalty.
 
-        Regimes:
-          Strong Bull  (SPY > MA200 * 1.05):  1.00  -- full exposure
-          Bull         (SPY > MA200):          0.90  -- slight reduction
-          Caution      (SPY < MA200 by <5%):  0.65  -- meaningful reduction
-          Bear         (SPY < MA200 by 5-15%): 0.40  -- significant reduction
-          Deep Bear    (SPY < MA200 by >15%): 0.20  -- near-cash
+        Base regime (SPY/MA200 ratio):
+          Strong Bull  (ratio >= 1.10): 1.00  -- full exposure
+          Bull         (ratio >= 1.05): 0.90
+          Mild Bull    (ratio >= 1.00): 0.90  -- same as Bull; death cross handles real danger
+          Caution      (ratio >= 0.95): 0.65
+          Bear         (ratio >= 0.85): 0.40
+          Deep Bear    (ratio <  0.85): 0.20
+
+        MA50 death cross penalty (MA50 < MA200):
+          base = max(base * 0.80, 0.20)
         """
         if 'SPY' not in self.bot.stocks_data:
             return 1.0
@@ -101,24 +111,36 @@ class V31MLStrategy(V31EnhancedStrategy):
         spy_hist = spy[spy.index <= date]
         if len(spy_hist) < 200:
             return 1.0
-        current = spy_hist['close'].iloc[-1]
-        ma200   = spy_hist['close'].tail(200).mean()
-        ratio   = current / ma200
-        if   ratio >= 1.05: return 1.00   # strong bull
-        elif ratio >= 1.00: return 0.90   # bull
-        elif ratio >= 0.95: return 0.65   # caution
-        elif ratio >= 0.85: return 0.40   # bear
-        else:               return 0.20   # deep bear
 
-    def _apply_ml_confidence_weights(self, tickers_scores, base_allocations, total_amount, blend=0.40):
+        current = float(spy_hist['close'].iloc[-1])
+        ma200   = float(spy_hist['close'].tail(200).mean())
+        ratio   = current / ma200
+
+        # Base regime from tightened MA200 thresholds
+        if   ratio >= 1.10: base = 1.00   # strong bull
+        elif ratio >= 1.05: base = 0.90   # bull
+        elif ratio >= 1.00: base = 0.90   # mild bull (same as bull; death cross handles real danger)
+        elif ratio >= 0.95: base = 0.65   # caution
+        elif ratio >= 0.85: base = 0.40   # bear
+        else:               base = 0.40   # deep bear — floor raised from 0.20
+
+        # MA50 death cross penalty: trend has rolled over
+        if len(spy_hist) >= 50:
+            ma50 = float(spy_hist['close'].tail(50).mean())
+            if ma50 < ma200:
+                base = max(base * 0.80, 0.40)  # floor at 0.40
+
+        return base
+
+    def _apply_ml_confidence_weights(self, tickers_scores, base_allocations, total_amount, blend=0.65):
         """
         Blend base_allocations (from EnhancedPositionSizer) with ML-score-proportional weights.
-        blend=0.40 means 40% ML score weight, 60% base weight.
+        blend=0.65 means 65% ML score weight, 35% base weight.
 
         Steps:
         1. Normalize ML scores to [0, 1] within the group (min-max)
         2. Convert to weights (sum to 1.0)
-        3. Blend: final_weight = 0.60 * base_weight + 0.40 * ml_weight
+        3. Blend: final_weight = 0.35 * base_weight + 0.65 * ml_weight
         4. Rescale to total_amount
         """
         if not tickers_scores or not base_allocations:
@@ -207,7 +229,7 @@ class V31MLStrategy(V31EnhancedStrategy):
                     if self.check_trailing_stop(ticker, current_price, holdings):
                         shares = holdings[ticker]['shares']
                         proceeds = shares * current_price
-                        cost = self.calculate_trade_cost(ticker, shares, current_price, date)
+                        cost = self.calculate_trade_cost(ticker, shares, current_price, date, action='SELL')
                         cash += proceeds - cost
                         self.total_costs += cost
                         self.trade_history.append({
@@ -252,7 +274,7 @@ class V31MLStrategy(V31EnhancedStrategy):
                         shares = holdings[ticker]['shares']
                         price = df_at_date.iloc[-1]['close']
                         proceeds = shares * price
-                        cost = self.calculate_trade_cost(ticker, shares, price, date)
+                        cost = self.calculate_trade_cost(ticker, shares, price, date, action='SELL')
                         cash += proceeds - cost
                         self.total_costs += cost
                         self.trade_history.append({

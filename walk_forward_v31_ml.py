@@ -189,10 +189,11 @@ def run():
         strategy_ml = V31MLStrategy(
             bot=bot,
             use_transaction_costs=True,
-            broker='interactive_brokers',
+            broker='alpaca',
             enable_covered_calls=True,
             ml_model=ml_ranker,
-            n_features_to_select=50
+            n_features_to_select=50,
+            fa_loader=fa_loader,
         )
         # Run only the test year — start a year earlier so trailing stop / peak
         # tracking has some warmup, but we evaluate only from test_start
@@ -206,7 +207,7 @@ def run():
         strategy_1a = V31Tier2GrowthScoringStrategy(
             bot=bot,
             use_transaction_costs=True,
-            broker='interactive_brokers',
+            broker='alpaca',
             enable_covered_calls=True,
             momentum_weight=0.50,
             growth_weight=0.50
