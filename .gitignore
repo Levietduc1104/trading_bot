@@ -44,6 +44,7 @@ config/alpaca_config.py
 
 # Alpaca API credentials
 src/live_trading/alpaca_config.py
+.env
 
 # Test/Development artifacts
 *.bak

@@ -175,9 +175,28 @@ class MLStockRanker:
         }).sort_values('importance', ascending=False)
 
         # Select top N features
-        selected = feature_importance_df.head(self.n_features_to_select)['feature'].tolist()
+        # Force-include stock-picker features that may be missed by shallow selection
+        force_include = [
+            # FA stock-pickers (sparse pre-2010, need forcing)
+            'earnings_quality', 'eps_beat_streak', 'analyst_dispersion',
+            'eps_acceleration', 'forward_eps_growth', 'num_analysts_eps',
+            'operating_leverage',
+            # New TA features (pure price — available full history)
+            'macd_histogram', 'bb_position', 'dist_from_52w_high',
+            'vol_regime', 'obv_trend', 'downside_dev', 'pct_months_positive',
+        ]
+        force_available = [f for f in force_include if f in feature_names]
 
-        logger.info(f"✅ Selected {len(selected)} features")
+        # Fill remaining slots from importance ranking (skip already forced)
+        n_remaining = self.n_features_to_select - len(force_available)
+        ranked = feature_importance_df[
+            ~feature_importance_df['feature'].isin(force_available)
+        ].head(n_remaining)['feature'].tolist()
+
+        selected = force_available + ranked
+
+        logger.info(f"✅ Selected {len(selected)} features "
+                    f"({len(force_available)} forced + {len(ranked)} by importance)")
         logger.info(f"   Top 10: {selected[:10]}")
 
         self.feature_importance = feature_importance_df

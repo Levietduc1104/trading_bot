@@ -154,21 +154,185 @@ class MLFeatureExtractor:
                 features['relative_strength_20d'] = (stock_ret_20 - spy_ret_20) * 100
 
         # 17: Beta (market sensitivity)
-        if len(df_at_date) >= 60 and 'SPY' in bot.stocks_data:
+        spy_df = None
+        if 'SPY' in bot.stocks_data:
             spy_df = bot.stocks_data['SPY'][bot.stocks_data['SPY'].index <= date]
-            if len(spy_df) >= 60:
-                stock_returns = df_at_date['close'].tail(60).pct_change().dropna()
-                spy_returns = spy_df['close'].tail(60).pct_change().dropna()
 
-                common_dates = stock_returns.index.intersection(spy_returns.index)
-                if len(common_dates) >= 30:
-                    stock_aligned = stock_returns.loc[common_dates]
-                    spy_aligned = spy_returns.loc[common_dates]
+        if spy_df is not None and len(spy_df) >= 60 and len(df_at_date) >= 60:
+            stock_returns = df_at_date['close'].tail(60).pct_change().dropna()
+            spy_returns   = spy_df['close'].tail(60).pct_change().dropna()
+            common_dates  = stock_returns.index.intersection(spy_returns.index)
+            if len(common_dates) >= 30:
+                stock_aligned = stock_returns.loc[common_dates]
+                spy_aligned   = spy_returns.loc[common_dates]
+                covariance    = np.cov(stock_aligned, spy_aligned)[0][1]
+                spy_variance  = np.var(spy_aligned)
+                if spy_variance > 0:
+                    features['beta'] = covariance / spy_variance
 
-                    covariance = np.cov(stock_aligned, spy_aligned)[0][1]
-                    spy_variance = np.var(spy_aligned)
-                    if spy_variance > 0:
-                        features['beta'] = covariance / spy_variance
+        close = df_at_date['close']
+        n     = len(df_at_date)
+
+        # ── TREND (5 new) ──────────────────────────────────────────────────────
+
+        # 18: Price / SMA200
+        if n >= 200:
+            features['price_to_sma200'] = (current_price / close.tail(200).mean() - 1) * 100
+
+        # 19: EMA12 / EMA26 ratio (MACD signal proxy)
+        if n >= 26:
+            ema12 = close.ewm(span=12, adjust=False).mean().iloc[-1]
+            ema26 = close.ewm(span=26, adjust=False).mean().iloc[-1]
+            if ema26 != 0:
+                features['ema_ratio_12_26'] = (ema12 / ema26 - 1) * 100
+
+        # 20: MACD histogram (ema12 - ema26 - signal9)
+        if n >= 35:
+            macd_line   = close.ewm(span=12, adjust=False).mean() - close.ewm(span=26, adjust=False).mean()
+            signal_line = macd_line.ewm(span=9, adjust=False).mean()
+            features['macd_histogram'] = float(macd_line.iloc[-1] - signal_line.iloc[-1])
+
+        # 21: SMA50 / SMA200 — golden/death cross
+        if n >= 200:
+            sma50  = close.tail(50).mean()
+            sma200 = close.tail(200).mean()
+            if sma200 != 0:
+                features['sma50_sma200_ratio'] = (sma50 / sma200 - 1) * 100
+
+        # 22: 250-day return (1-year momentum)
+        if n >= 250:
+            features['return_250d'] = (close.iloc[-1] / close.iloc[-250] - 1) * 100
+
+        # ── MEAN REVERSION (3 new) ─────────────────────────────────────────────
+
+        # 23: Bollinger Band position  (0=lower band, 50=mid, 100=upper)
+        if n >= 20:
+            mid  = close.tail(20).mean()
+            std  = close.tail(20).std()
+            if std > 0:
+                upper = mid + 2 * std
+                lower = mid - 2 * std
+                features['bb_position'] = float(np.clip((current_price - lower) / (upper - lower) * 100, 0, 100))
+                features['bb_width']    = float((upper - lower) / mid * 100)  # band width as % of price
+
+        # 25: Distance from 52-week high (drawdown from peak)
+        if n >= 252:
+            high_52w = close.tail(252).max()
+            features['dist_from_52w_high'] = (current_price / high_52w - 1) * 100  # always <= 0
+
+        # ── VOLATILITY (3 new) ─────────────────────────────────────────────────
+
+        # 26: ATR-14 normalised by price
+        if n >= 15 and 'high' in df_at_date.columns and 'low' in df_at_date.columns:
+            high = df_at_date['high'].tail(15)
+            low  = df_at_date['low'].tail(15)
+            prev_close = df_at_date['close'].shift(1).tail(15)
+            tr = pd.concat([high - low,
+                            (high - prev_close).abs(),
+                            (low  - prev_close).abs()], axis=1).max(axis=1)
+            atr14 = tr.tail(14).mean()
+            if current_price > 0:
+                features['atr_pct'] = float(atr14 / current_price * 100)
+
+        # 27: Volatility regime — short vol / long vol ratio
+        if n >= 60:
+            vol20 = close.tail(20).pct_change().dropna().std()
+            vol60 = close.tail(60).pct_change().dropna().std()
+            if vol60 > 0:
+                features['vol_regime'] = float(vol20 / vol60)  # >1 = vol expanding, <1 = contracting
+
+        # 28: Max intra-period drawdown (20d)
+        if n >= 20:
+            roll_max = close.tail(20).cummax()
+            dd_series = (close.tail(20) - roll_max) / roll_max * 100
+            features['max_dd_20d'] = float(dd_series.min())
+
+        # ── VOLUME (3 new) ─────────────────────────────────────────────────────
+
+        if 'volume' in df_at_date.columns:
+            vol_series = df_at_date['volume']
+
+            # 29: OBV trend (slope of OBV over last 20 days, normalised)
+            if n >= 20:
+                price_chg = close.diff()
+                obv = (np.sign(price_chg) * vol_series).tail(20).cumsum()
+                if obv.std() > 0:
+                    obv_norm = (obv - obv.mean()) / obv.std()
+                    # slope via last vs first normalised value
+                    features['obv_trend'] = float(obv_norm.iloc[-1] - obv_norm.iloc[0])
+
+            # 30: Volume z-score (current vol vs 60d avg)
+            if n >= 60:
+                vol_mean = vol_series.tail(60).mean()
+                vol_std  = vol_series.tail(60).std()
+                if vol_std > 0:
+                    features['volume_zscore'] = float((vol_series.iloc[-1] - vol_mean) / vol_std)
+
+            # 31: Price-volume divergence (price up but volume down = weak move)
+            if n >= 10:
+                price_ret_5 = (close.iloc[-1] / close.iloc[-5] - 1)
+                vol_ret_5   = (vol_series.tail(5).mean() / vol_series.tail(10).mean() - 1) if vol_series.tail(10).mean() > 0 else 0
+                features['price_vol_divergence'] = float(price_ret_5 * 100 - vol_ret_5 * 100)
+
+        # ── MOMENTUM OSCILLATORS (3 new) ──────────────────────────────────────
+
+        # 32: Williams %R (14-period)
+        if n >= 14 and 'high' in df_at_date.columns and 'low' in df_at_date.columns:
+            high14 = df_at_date['high'].tail(14).max()
+            low14  = df_at_date['low'].tail(14).min()
+            if high14 != low14:
+                features['williams_r'] = float((high14 - current_price) / (high14 - low14) * -100)
+
+        # 33: Stochastic %K (14-period)
+        if n >= 14 and 'high' in df_at_date.columns and 'low' in df_at_date.columns:
+            high14 = df_at_date['high'].tail(14).max()
+            low14  = df_at_date['low'].tail(14).min()
+            if high14 != low14:
+                features['stochastic_k'] = float((current_price - low14) / (high14 - low14) * 100)
+
+        # 34: Rate of change 10d
+        if n >= 10:
+            features['roc_10d'] = float((close.iloc[-1] / close.iloc[-10] - 1) * 100)
+
+        # ── PATTERN / STRUCTURE (3 new) ───────────────────────────────────────
+
+        # 35: Consecutive up days (momentum confirmation)
+        if n >= 10:
+            streak = 0
+            daily_chg = close.diff().tail(10)
+            for chg in reversed(daily_chg.values):
+                if chg > 0:
+                    streak += 1
+                else:
+                    break
+            features['up_streak'] = float(streak)
+
+        # 36: Gap ratio (today open vs yesterday close)
+        if n >= 2 and 'open' in df_at_date.columns:
+            prev_c = df_at_date['close'].iloc[-2]
+            curr_o = df_at_date['open'].iloc[-1]
+            if prev_c > 0:
+                features['gap_ratio'] = float((curr_o / prev_c - 1) * 100)
+
+        # 37: Downside deviation (semi-deviation, 60d)
+        if n >= 60:
+            rets60 = close.tail(60).pct_change().dropna()
+            down   = rets60[rets60 < 0]
+            features['downside_dev'] = float(down.std() * np.sqrt(252) * 100) if len(down) > 1 else 0.0
+
+        # ── RELATIVE STRENGTH (2 new) ─────────────────────────────────────────
+
+        # 38: 120d relative strength vs SPY
+        if spy_df is not None and n >= 120 and len(spy_df) >= 120:
+            stock_ret_120 = (close.iloc[-1] / close.iloc[-120] - 1)
+            spy_ret_120   = (spy_df['close'].iloc[-1] / spy_df['close'].iloc[-120] - 1)
+            features['relative_strength_120d'] = float((stock_ret_120 - spy_ret_120) * 100)
+
+        # 39: Return consistency — % of months positive over last 12 months
+        if n >= 252:
+            monthly_rets = close.tail(252).resample('ME').last().pct_change().dropna()
+            if len(monthly_rets) >= 6:
+                features['pct_months_positive'] = float((monthly_rets > 0).mean() * 100)
 
         return features
 
@@ -333,9 +497,9 @@ class MLFeatureExtractor:
 
     def _extract_premium_features(self, ticker: str, date: pd.Timestamp, fa_loader) -> Dict:
         """
-        Extract ~15 forward-looking features from premium FMP data.
+        Extract ~22 forward-looking and stock-specific features from premium FMP data.
 
-        Features:
+        Original 15 features:
           - earnings_beat_pct        : (actual - estimated) / |estimated| EPS surprise %
           - revenue_surprise_pct     : (actual - estimated) / estimated revenue surprise %
           - eps_beat_3q_avg          : avg EPS beat % over last 3 quarters
@@ -351,6 +515,15 @@ class MLFeatureExtractor:
           - debt_change_yoy          : YoY change in total debt (positive = more debt)
           - cash_change_yoy          : YoY change in cash & equivalents
           - capex_to_revenue         : capex / revenue % (investment intensity)
+
+        NEW stock-picking features (7):
+          - analyst_dispersion       : (epsHigh - epsLow) / |epsAvg| — consensus vs uncertainty
+          - num_analysts_eps         : number of analysts covering EPS — institutional interest proxy
+          - forward_eps_growth       : forward epsAvg vs trailing EPS — growth expectation
+          - eps_beat_streak          : consecutive quarters beating EPS estimate (0–8)
+          - eps_acceleration         : current EPS surprise % minus prior quarter surprise %
+          - operating_leverage       : operating income growth / revenue growth — margin expansion
+          - earnings_quality         : OCF / net income — cash earnings vs reported earnings
         """
         f = {}
 
@@ -543,6 +716,99 @@ class MLFeatureExtractor:
             f['debt_change_yoy'] = 0.0
             f['cash_change_yoy'] = 0.0
 
+        # ── NEW: Analyst dispersion, coverage, forward growth ─────────────
+        analyst_rec = fa_loader.get_analyst_at_date(ticker, date)
+        if analyst_rec:
+            eps_avg  = analyst_rec.get('epsAvg')  or analyst_rec.get('epsEstimated') or 0
+            eps_high = analyst_rec.get('epsHigh') or 0
+            eps_low  = analyst_rec.get('epsLow')  or 0
+            num_an   = analyst_rec.get('numAnalystsEps') or 0
+
+            # Dispersion: how much analysts disagree (normalised by magnitude)
+            if abs(eps_avg) > 0:
+                f['analyst_dispersion'] = (eps_high - eps_low) / abs(eps_avg)
+            else:
+                f['analyst_dispersion'] = 0.0
+
+            f['num_analysts_eps'] = float(num_an)
+
+            # Forward EPS growth: forward consensus vs trailing EPS
+            inc_rec_now = fa_loader.get_income_at_date(ticker, date)
+            trailing_eps = 0.0
+            if inc_rec_now:
+                trailing_eps = float(inc_rec_now.get('epsDiluted') or
+                                     inc_rec_now.get('eps') or 0)
+            if abs(trailing_eps) > 0.01 and eps_avg != 0:
+                f['forward_eps_growth'] = (eps_avg - trailing_eps) / abs(trailing_eps) * 100
+            else:
+                f['forward_eps_growth'] = 0.0
+        else:
+            f['analyst_dispersion']  = 0.0
+            f['num_analysts_eps']    = 0.0
+            f['forward_eps_growth']  = 0.0
+
+        # ── NEW: EPS beat streak and acceleration ─────────────────────────
+        date_str = date.strftime('%Y-%m-%d')
+        beat_history = []   # list of (beat_bool, surprise_pct) newest first
+        if ticker in fa_loader.earnings_date_idx:
+            from bisect import bisect_left
+            dates_list = fa_loader.earnings_date_idx[ticker]
+            idx = bisect_left(dates_list, date_str)
+            if idx >= len(dates_list): idx = len(dates_list) - 1
+            elif dates_list[idx] > date_str and idx > 0: idx -= 1
+            src = {r['date']: r for r in fa_loader.earnings.get(ticker, [])}
+            for i in range(idx, max(-1, idx - 8), -1):
+                if i >= 0 and dates_list[i] in src:
+                    r = src[dates_list[i]]
+                    ea = r.get('epsActual')
+                    ee = r.get('epsEstimated')
+                    if ea is not None and ee not in (None, 0):
+                        surp = (ea - ee) / abs(ee) * 100
+                        beat_history.append((ea >= ee, surp))
+                    elif ea is not None:
+                        beat_history.append((False, 0.0))
+
+        # Consecutive beat streak (newest first)
+        streak = 0
+        for beat, _ in beat_history:
+            if beat:
+                streak += 1
+            else:
+                break
+        f['eps_beat_streak'] = float(streak)
+
+        # EPS surprise acceleration: most recent vs prior quarter
+        if len(beat_history) >= 2:
+            f['eps_acceleration'] = beat_history[0][1] - beat_history[1][1]
+        else:
+            f['eps_acceleration'] = 0.0
+
+        # ── NEW: Operating leverage ────────────────────────────────────────
+        # Operating income growth / revenue growth — positive = margin expansion
+        income_hist_5 = fa_loader.get_income_history(ticker, date, n_quarters=5)
+        f['operating_leverage'] = 0.0
+        if income_hist_5 and len(income_hist_5) >= 5:
+            rev_now = income_hist_5[0].get('revenue') or 0
+            rev_4q  = income_hist_5[4].get('revenue') or 0
+            oi_now  = income_hist_5[0].get('operatingIncome') or 0
+            oi_4q   = income_hist_5[4].get('operatingIncome') or 0
+            rev_growth = (rev_now / rev_4q - 1) if rev_4q != 0 else 0
+            oi_growth  = (oi_now  / oi_4q  - 1) if oi_4q  != 0 and oi_4q > 0 else 0
+            if abs(rev_growth) > 0.001:
+                f['operating_leverage'] = oi_growth / abs(rev_growth)
+
+        # ── NEW: Earnings quality (OCF / Net Income) ──────────────────────
+        cf_rec  = fa_loader.get_cashflow_at_date(ticker, date)
+        inc_rec = fa_loader.get_income_at_date(ticker, date)
+        f['earnings_quality'] = 0.0  # default: unknown
+        if cf_rec and inc_rec:
+            ocf = cf_rec.get('operatingCashFlow') or 0
+            ni  = inc_rec.get('netIncome') or 0
+            if abs(ni) > 0:
+                eq = ocf / abs(ni)
+                # Clip to [-3, 5] to avoid extreme values
+                f['earnings_quality'] = float(np.clip(eq, -3.0, 5.0))
+
         # Replace any NaN/inf/non-numeric with 0
         for k, v in f.items():
             try:
@@ -637,10 +903,10 @@ class MLFeatureExtractor:
     def get_feature_count(self) -> Dict[str, int]:
         """Get feature counts by category"""
         return {
-            'technical': 20,
+            'technical': 42,
             'fundamental_ratios': 64,
             'fundamental_metrics': 47,
-            'premium': 15,
+            'premium': 22,
             'macro': 7,
-            'total': 153
+            'total': 182
         }
